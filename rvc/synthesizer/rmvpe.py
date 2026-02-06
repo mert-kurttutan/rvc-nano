@@ -41,7 +41,6 @@ class E2E(nn.Module):
             en_out_channels,
         )
         self.cnn = nn.Conv2d(en_out_channels, 3, (3, 3), padding=(1, 1))
-        print(f"n_gru: {n_gru}")
         if n_gru:
             self.fc = nn.Sequential(
                 BiGRU(3 * 128, 256, n_gru),
@@ -55,11 +54,9 @@ class E2E(nn.Module):
             )
 
     def forward(self, mel):
-        # print(mel.shape)
         mel = mel.transpose(-1, -2).unsqueeze(1)
         x = self.cnn(self.unet(mel)).transpose(1, 2).flatten(-2)
         x = self.fc(x)
-        # print(x.shape)
         return x
 
 

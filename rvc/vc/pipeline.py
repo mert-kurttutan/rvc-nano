@@ -113,7 +113,6 @@ class Pipeline(object):
                     device=self.device,
                 )
             f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
-        print(f"f0_up_key: {f0_up_key}")
         f0 *= pow(2, f0_up_key / 12)
         tf0 = self.sr // self.window  # 每秒f0点数
         if inp_f0 is not None:
@@ -156,7 +155,6 @@ class Pipeline(object):
         version,
         protect,
     ):
-        print(f"version: {version}")
         feats = torch.from_numpy(audio0)
         if self.is_half:
             feats = feats.half()
@@ -215,10 +213,8 @@ class Pipeline(object):
             feats = feats.to(feats0.dtype)
         with torch.no_grad():
             hasp = pitch is not None and pitchf is not None
-            print(f"hasp: {hasp}")
             arg = (feats, p_len, pitch, pitchf, sid) if hasp else (feats, p_len, sid)
             audio1 = (net_g(*arg)[0, 0]).data.cpu().float().numpy()
-            print(f"name of net_g: {net_g.__class__.__name__}")
             del hasp, arg
         del feats, p_len, padding_mask
         if torch.cuda.is_available():
@@ -244,7 +240,6 @@ class Pipeline(object):
         protect,
         f0_file: Optional[str] = None,
     ):
-        print(f"pipeline sid: {sid}")
         if (
             file_index
             and file_index != ""
@@ -284,7 +279,6 @@ class Pipeline(object):
         audio_pad = np.pad(audio, (self.t_pad, self.t_pad), mode="reflect")
         p_len = audio_pad.shape[0] // self.window
         inp_f0 = None
-        print(f"f0_file: {f0_file}")
         if f0_file is not None:
             try:
                 with open(f0_file, "r") as f:
@@ -308,7 +302,6 @@ class Pipeline(object):
             )
         else:
             pitch, pitchf = None, None
-        print(f"opt_ts: {opt_ts}")
         for t in opt_ts:
             t = t // self.window * self.window
             pitch_slice = (

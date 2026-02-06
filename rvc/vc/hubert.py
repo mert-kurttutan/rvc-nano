@@ -1,10 +1,6 @@
 import math
-import os
-import re
-import uuid
-from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Literal, Optional
+from typing import Any, Callable, Literal, Optional
 
 import numpy as np
 import torch
@@ -1210,7 +1206,6 @@ class ConformerWav2Vec2EncoderLayer(nn.Module):
         )
 
         self.self_attn_layer_norm = nn.LayerNorm(embed_dim)
-        print(f"attn_type = {attn_type}")
         if attn_type == "espnet":
             if self.pos_enc_type == "rel_pos":
                 self.self_attn = RelPositionMultiHeadedAttention(
@@ -1264,7 +1259,6 @@ class ConformerWav2Vec2EncoderLayer(nn.Module):
         Returns:
             Tensor of shape T X B X C
         """
-        print(f"postion_emb: {position_emb}")
         residual = x
         x = self.ffn1(x)
         x = x * 0.5 + residual

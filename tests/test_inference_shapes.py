@@ -7,13 +7,6 @@ import soundfile as sf
 from dotenv import load_dotenv
 
 
-def _get_model_path() -> str:
-    model_path = os.getenv("RVC_TEST_MODEL") or os.getenv("RVC_MODEL_PATH")
-    if not model_path:
-        pytest.skip("Set RVC_TEST_MODEL (or RVC_MODEL_PATH) to a .pth model file.")
-    return str(model_path)
-
-
 def _get_input_path(tmp_path: Path) -> Path:
     input_path = os.getenv("RVC_TEST_INPUT")
     if input_path:
@@ -34,9 +27,7 @@ def test_vc_inference_shapes(tmp_path: Path) -> None:
 
     from rvc.vc.modules import VC
 
-    # model_path = _get_model_path()
     input_path = _get_input_path(tmp_path)
-    print(f"input_path: {input_path}")
 
     # Provide hubert_path if assets exist; otherwise skip with a clear message.
     hubert_path = "assets/hubert_base.pt"

@@ -30,20 +30,17 @@ def audio2(i, o, format, sr):
 
 
 def load_audio(file, sr):
-    print(f"lading audio from: {file}")
     if not os.path.exists(file):
         raise RuntimeError(
             "You input a wrong audio path that does not exists, please fix it!"
         )
     try:
-        print("hi try")
         with open(file, "rb") as f:
             with BytesIO() as out:
                 audio2(f, out, "f32le", sr)
                 return np.frombuffer(out.getvalue(), np.float32).flatten()
 
     except AttributeError:
-        print("hi except")
         audio = file[1] / 32768.0
         if len(audio.shape) == 2:
             audio = np.mean(audio, -1)

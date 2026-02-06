@@ -564,7 +564,6 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
         nsff0: torch.Tensor,
         sid: torch.Tensor,
     ):
-        print(f"sid: {sid}")
         g = self.emb_g(sid).unsqueeze(-1)
         m_p, logs_p, x_mask = self.enc_p(phone, pitch, phone_lengths)
         z_p = (m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666) * x_mask
