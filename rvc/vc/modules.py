@@ -1,11 +1,9 @@
 import json
 import os
-from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import torch
 from safetensors.torch import load_file
 
 from rvc.configs.config import Config
@@ -55,8 +53,6 @@ class VC:
         self.net_g = synthesizer_class.get(
             (self.version, self.if_f0), SynthesizerTrnMs256NSFsid
         )(*self.rvc_model_config, is_half=self.config.is_half)
-
-        del self.net_g.enc_q
 
         self.net_g.load_state_dict(rvc_state, strict=False)
         self.net_g.eval().to(self.config.device)

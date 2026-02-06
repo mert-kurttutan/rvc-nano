@@ -34,7 +34,7 @@ def test_vc_inference_shapes(tmp_path: Path) -> None:
 
     from rvc.vc.modules import VC
 
-    model_path = _get_model_path()
+    # model_path = _get_model_path()
     input_path = _get_input_path(tmp_path)
     print(f"input_path: {input_path}")
 

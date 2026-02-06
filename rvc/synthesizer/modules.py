@@ -86,7 +86,7 @@ class WN(torch.nn.Module):
     ):
         output = torch.zeros_like(x)
         n_channels_tensor = torch.IntTensor([self.hidden_channels])
-
+        print(f"g: {g.shape if g is not None else None}")
         if g is not None:
             g = self.cond_layer(g)
 
