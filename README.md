@@ -40,5 +40,9 @@ https://github.com/RVC-Project/Retrieval-based-Voice-Conversion
 Early and intentionally minimal. Expect missing features and breaking changes while the
 interface is refined.
 
+## Attributions
+Heavily inspired by RVC (Retrieval-based Voice Conversion) and please see the original repo
+https://github.com/RVC-Project/Retrieval-based-Voice-Conversion
+
 ## License
 See `LICENSE`.
