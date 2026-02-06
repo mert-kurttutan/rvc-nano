@@ -62,7 +62,9 @@ def test_vc_inference_shapes(tmp_path: Path) -> None:
     assert audio_opt.ndim in (1, 2)
     assert audio_opt.shape[0] > 0
 
-    output_path = Path(__file__).resolve().parent.parent / "output.wav"
+    output_dir = Path(__file__).resolve().parent.parent / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "output.wav"
     sf.write(output_path, np.asarray(audio_opt), tgt_sr)
 
 
