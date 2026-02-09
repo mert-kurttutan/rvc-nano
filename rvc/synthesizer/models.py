@@ -94,7 +94,7 @@ class ResidualCouplingBlock(nn.Module):
         return x
 
 
-class Generator(torch.nn.Module):
+class Generator(nn.Module):
     def __init__(
         self,
         initial_channel,
@@ -158,7 +158,7 @@ class Generator(torch.nn.Module):
         return x
 
 
-class SineGen(torch.nn.Module):
+class SineGen(nn.Module):
     """Definition of sine generator
     SineGen(samp_rate, harmonic_num = 0,
             sine_amp = 0.1, noise_std = 0.003,
@@ -240,7 +240,7 @@ class SineGen(torch.nn.Module):
         return sine_waves, uv
 
 
-class SourceModuleHnNSF(torch.nn.Module):
+class SourceModuleHnNSF(nn.Module):
     """SourceModule for hn-nsf
     SourceModule(sampling_rate, harmonic_num=0, sine_amp=0.1,
                  add_noise_std=0.003, voiced_threshod=0)
@@ -284,7 +284,7 @@ class SourceModuleHnNSF(torch.nn.Module):
         return sine_merge
 
 
-class GeneratorNSF(torch.nn.Module):
+class GeneratorNSF(nn.Module):
     def __init__(
         self,
         initial_channel,

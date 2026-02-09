@@ -24,7 +24,7 @@ class LayerNorm(nn.Module):
         return x.transpose(1, -1)
 
 
-class WN(torch.nn.Module):
+class WN(nn.Module):
     def __init__(
         self,
         hidden_channels,
@@ -38,8 +38,8 @@ class WN(torch.nn.Module):
         self.hidden_channels = hidden_channels
         self.n_layers = n_layers
 
-        self.in_layers = torch.nn.ModuleList()
-        self.res_skip_layers = torch.nn.ModuleList()
+        self.in_layers = nn.ModuleList()
+        self.res_skip_layers = nn.ModuleList()
 
         if gin_channels != 0:
             cond_layer = torch.nn.Conv1d(gin_channels, 2 * hidden_channels * n_layers, 1)
@@ -94,7 +94,7 @@ class WN(torch.nn.Module):
         return output * x_mask
 
 
-class ResBlock1(torch.nn.Module):
+class ResBlock1(nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3, 5)):
         super().__init__()
         self.convs1 = nn.ModuleList(
@@ -140,7 +140,7 @@ class ResBlock1(torch.nn.Module):
         return x
 
 
-class ResBlock2(torch.nn.Module):
+class ResBlock2(nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3)):
         super().__init__()
         self.convs = nn.ModuleList(

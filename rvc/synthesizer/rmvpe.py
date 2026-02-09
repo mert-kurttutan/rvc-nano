@@ -238,7 +238,7 @@ class E2E(nn.Module):
         return x
 
 
-class MelSpectrogram(torch.nn.Module):
+class MelSpectrogram(nn.Module):
     def __init__(
         self,
         is_half,
