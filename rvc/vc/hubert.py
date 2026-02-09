@@ -185,15 +185,12 @@ def pad_to_multiple(x, multiple, dim=-1, value=0):
 
 
 class TransposeLast(nn.Module):
-    def __init__(self, deconstruct_idx=None, tranpose_dim=-2):
+    def __init__(self):
         super().__init__()
-        self.deconstruct_idx = deconstruct_idx
-        self.tranpose_dim = tranpose_dim
+        self.tranpose_dim = -2
 
     def forward(self, x):
-        if self.deconstruct_idx is not None:
-            x = x[self.deconstruct_idx]
-        return x.transpose(self.tranpose_dim, -1)
+        return x.transpose(-2, -1)
 
 
 class SamePad(nn.Module):
@@ -671,7 +668,6 @@ class ESPNETMultiHeadedAttention(nn.Module):
         self.linear_k = nn.Linear(n_feat, n_feat)
         self.linear_v = nn.Linear(n_feat, n_feat)
         self.linear_out = nn.Linear(n_feat, n_feat)
-        self.attn = None
 
     def forward_qkv(self, query, key, value, **kwargs):
         """Transform query, key and value.
@@ -709,11 +705,10 @@ class ESPNETMultiHeadedAttention(nn.Module):
                 mask.unsqueeze(1).unsqueeze(2).to(bool),
                 float("-inf"),  # (batch, head, time1, time2)
             )
-            self.attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
+            p_attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
 
         else:
-            self.attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
-        p_attn = self.attn
+            p_attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
         x = torch.matmul(p_attn, value)  # (batch, head, time1, d_k)
         x = (
             x.transpose(1, 2).contiguous().view(n_batch, -1, self.h * self.d_k)
@@ -928,7 +923,6 @@ class TransformerSentenceEncoderLayer(nn.Module):
         self,
         x: torch.Tensor,
         self_attn_padding_mask: Optional[torch.Tensor] = None,
-        need_weights: bool = False,
     ):
         """
         LayerNorm is applied either before or after the self-attention/ffn
@@ -943,7 +937,6 @@ class TransformerSentenceEncoderLayer(nn.Module):
                 key=x,
                 value=x,
                 key_padding_mask=self_attn_padding_mask,
-                need_weights=False,
             )
             x = residual + x
 
@@ -956,12 +949,11 @@ class TransformerSentenceEncoderLayer(nn.Module):
 
             x = residual + x
         else:
-            x, attn = self.self_attn(
+            x = self.self_attn(
                 query=x,
                 key=x,
                 value=x,
                 key_padding_mask=self_attn_padding_mask,
-                need_weights=False,
             )
 
             x = residual + x
@@ -1248,7 +1240,6 @@ class ConformerWav2Vec2EncoderLayer(nn.Module):
         self,
         x: torch.Tensor,
         self_attn_padding_mask: Optional[torch.Tensor] = None,
-        need_weights: bool = False,
         position_emb=None,
     ):
         """
@@ -1265,21 +1256,19 @@ class ConformerWav2Vec2EncoderLayer(nn.Module):
         residual = x
         x = self.self_attn_layer_norm(x)
         if self.pos_enc_type == "rel_pos":
-            x, attn = self.self_attn(
+            x = self.self_attn(
                 query=x,
                 key=x,
                 value=x,
                 key_padding_mask=self_attn_padding_mask,
                 pos_emb=position_emb,
-                need_weights=False,
             )
         else:
-            x, attn = self.self_attn(
+            x = self.self_attn(
                 query=x,
                 key=x,
                 value=x,
                 key_padding_mask=self_attn_padding_mask,
-                need_weights=False,
             )
         x = x + residual
 
@@ -1356,16 +1345,13 @@ class MultiheadAttention(nn.Module):
         key: Optional[Tensor],
         value: Optional[Tensor],
         key_padding_mask: Optional[Tensor] = None,
-        need_weights: bool = True,
-    ) -> tuple[Tensor, Optional[Tensor]]:
+    ) -> Tensor:
         """Input shape: Time x Batch x Channel
 
         Args:
             key_padding_mask (ByteTensor, optional): mask to exclude
                 keys that are pads, of shape `(batch, src_len)`, where
                 padding elements are indicated by 1s.
-            need_weights (bool, optional): return the attention weights,
-                averaged over heads (default: False).
         """
         tgt_len, bsz, embed_dim = query.size()
         src_len = tgt_len
@@ -1401,13 +1387,13 @@ class MultiheadAttention(nn.Module):
                 self.out_proj.bias,
                 False,
                 key_padding_mask.bool() if key_padding_mask is not None else None,
-                need_weights,
+                False,
                 None,
                 use_separate_proj_weight=True,
                 q_proj_weight=self.q_proj.weight,
                 k_proj_weight=self.k_proj.weight,
                 v_proj_weight=self.v_proj.weight,
-            )
+            )[0]
 
         if self.self_attention:
             q = self.q_proj(query)
@@ -1477,15 +1463,7 @@ class MultiheadAttention(nn.Module):
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
         attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, self.embed_dim)
         attn = self.out_proj(attn)
-        attn_weights: Optional[Tensor] = None
-        if need_weights:
-            attn_weights = attn_weights_float.view(
-                bsz, self.num_heads, tgt_len, src_len
-            ).transpose(1, 0)
-            # average attention weights over heads
-            attn_weights = attn_weights.mean(dim=0)
-
-        return attn, attn_weights
+        return attn
 
     def set_beam_size(self, beam_size):
         """Used for effiecient beamable enc-dec attention"""
@@ -1651,12 +1629,9 @@ class TransformerEncoder(nn.Module):
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
-        r = x
-
         for i, layer in enumerate(self.layers):
-            x = layer(x, self_attn_padding_mask=padding_mask, need_weights=False)
+            x = layer(x, self_attn_padding_mask=padding_mask)
             if i == tgt_layer:
-                r = x
                 break
 
         # T x B x C -> B x T x C
@@ -1673,7 +1648,7 @@ class HubertModel(nn.Module):
         self,
         cfg,
         task_cfg: HubertPretrainingConfig,
-    ) -> None:
+    ):
         super().__init__()
         self._is_generation_fast = False
         feature_enc_layers = eval(cfg["conv_feature_layers"])  # noqa
@@ -1749,11 +1724,11 @@ class HubertModel(nn.Module):
         """output layer is 1-based"""
         features = self.feature_extractor(source)
 
-        features_pen = features.float().pow(2).mean()
+        # features_pen = features.float().pow(2).mean()
 
         features = features.transpose(1, 2)
         features = self.layer_norm(features)
-        unmasked_features = features.clone()
+        # unmasked_features = features.clone()
 
         if padding_mask is not None:
             padding_mask = self.forward_padding_mask(features, padding_mask)
@@ -1776,7 +1751,7 @@ class HubertModel(nn.Module):
         source: torch.Tensor,
         padding_mask: torch.Tensor,
         output_layer: int,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
         res = self.forward(
             source,
             padding_mask=padding_mask,

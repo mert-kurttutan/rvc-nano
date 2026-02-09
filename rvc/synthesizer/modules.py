@@ -250,14 +250,11 @@ class ResidualCouplingLayer(nn.Module):
         dilation_rate,
         n_layers,
         gin_channels=0,
-        mean_only=False,
     ):
         assert channels % 2 == 0, "channels should be divisible by 2"
         super(ResidualCouplingLayer, self).__init__()
         self.hidden_channels = hidden_channels
         self.half_channels = channels // 2
-        self.mean_only = mean_only
-
         self.pre = nn.Conv1d(self.half_channels, hidden_channels, 1)
         self.enc = WN(
             hidden_channels,
@@ -266,7 +263,7 @@ class ResidualCouplingLayer(nn.Module):
             n_layers,
             gin_channels=gin_channels,
         )
-        self.post = nn.Conv1d(hidden_channels, self.half_channels * (2 - mean_only), 1)
+        self.post = nn.Conv1d(hidden_channels, self.half_channels, 1)
         self.post.weight.data.zero_()
         self.post.bias.data.zero_()
 
@@ -280,12 +277,6 @@ class ResidualCouplingLayer(nn.Module):
         h = self.pre(x0) * x_mask
         h = self.enc(h, x_mask, g=g)
         stats = self.post(h) * x_mask
-        if not self.mean_only:
-            m, logs = torch.split(stats, [self.half_channels] * 2, 1)
-        else:
-            m = stats
-            logs = torch.zeros_like(m)
-
-        x1 = (x1 - m) * torch.exp(-logs) * x_mask
+        x1 = (x1 - stats) * x_mask
         x = torch.cat([x0, x1], 1)
         return x

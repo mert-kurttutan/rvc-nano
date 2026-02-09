@@ -262,10 +262,7 @@ class FFN(nn.Module):
         self.conv_2 = nn.Conv1d(filter_channels, out_channels, kernel_size)
 
     def padding(self, x: torch.Tensor, x_mask: torch.Tensor) -> torch.Tensor:
-        if self.causal:
-            padding = self._causal_padding(x * x_mask)
-        else:
-            padding = self._same_padding(x * x_mask)
+        padding = self._same_padding(x * x_mask)
         return padding
 
     def forward(self, x: torch.Tensor, x_mask: torch.Tensor):
@@ -274,17 +271,6 @@ class FFN(nn.Module):
 
         x = self.conv_2(self.padding(x, x_mask))
         return x * x_mask
-
-    def _causal_padding(self, x):
-        if self.kernel_size == 1:
-            return x
-        pad_l: int = self.kernel_size - 1
-        pad_r: int = 0
-        x = F.pad(
-            x,
-            [pad_l, pad_r, 0, 0, 0, 0],
-        )
-        return x
 
     def _same_padding(self, x):
         if self.kernel_size == 1:

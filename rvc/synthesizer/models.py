@@ -85,7 +85,6 @@ class ResidualCouplingBlock(nn.Module):
                     dilation_rate,
                     n_layers,
                     gin_channels=gin_channels,
-                    mean_only=True,
                 )
             )
             self.flows.append(modules.Flip())
@@ -173,16 +172,13 @@ class SineGen(torch.nn.Module):
     """Definition of sine generator
     SineGen(samp_rate, harmonic_num = 0,
             sine_amp = 0.1, noise_std = 0.003,
-            voiced_threshold = 0,
-            flag_for_pulse=False)
+            voiced_threshold = 0
+    )
     samp_rate: sampling rate in Hz
     harmonic_num: number of harmonic overtones (default 0)
     sine_amp: amplitude of sine-wavefrom (default 0.1)
     noise_std: std of Gaussian noise (default 0.003)
     voiced_thoreshold: F0 threshold for U/V classification (default 0)
-    flag_for_pulse: this SinGen is used inside PulseGen (default False)
-    Note: when flag_for_pulse is True, the first time step of a voiced
-        segment is always sin(torch.pi) or cos(0)
     """
 
     def __init__(
@@ -192,7 +188,6 @@ class SineGen(torch.nn.Module):
         sine_amp=0.1,
         noise_std=0.003,
         voiced_threshold=0,
-        flag_for_pulse=False,
     ):
         super(SineGen, self).__init__()
         self.sine_amp = sine_amp
@@ -292,13 +287,11 @@ class SourceModuleHnNSF(torch.nn.Module):
         sine_amp=0.1,
         add_noise_std=0.003,
         voiced_threshod=0,
-        is_half=True,
     ):
         super(SourceModuleHnNSF, self).__init__()
 
         self.sine_amp = sine_amp
         self.noise_std = add_noise_std
-        self.is_half = is_half
         # to produce sine waveforms
         self.l_sin_gen = SineGen(
             sampling_rate, harmonic_num, sine_amp, add_noise_std, voiced_threshod
@@ -312,7 +305,7 @@ class SourceModuleHnNSF(torch.nn.Module):
         sine_wavs, uv = self.l_sin_gen(x, upp)
         sine_wavs = sine_wavs.to(dtype=self.l_linear.weight.dtype)
         sine_merge = self.l_tanh(self.l_linear(sine_wavs))
-        return sine_merge, None, None  # noise, uv
+        return sine_merge
 
 
 class GeneratorNSF(torch.nn.Module):
@@ -327,16 +320,13 @@ class GeneratorNSF(torch.nn.Module):
         upsample_kernel_sizes,
         gin_channels,
         sr,
-        is_half=False,
     ):
         super(GeneratorNSF, self).__init__()
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
 
         self.f0_upsamp = torch.nn.Upsample(scale_factor=math.prod(upsample_rates))
-        self.m_source = SourceModuleHnNSF(
-            sampling_rate=sr, harmonic_num=0, is_half=is_half
-        )
+        self.m_source = SourceModuleHnNSF(sampling_rate=sr, harmonic_num=0)
         self.noise_convs = nn.ModuleList()
         self.conv_pre = Conv1d(
             initial_channel, upsample_initial_channel, 7, 1, padding=3
@@ -389,7 +379,7 @@ class GeneratorNSF(torch.nn.Module):
         self.lrelu_slope = modules.LRELU_SLOPE
 
     def forward(self, x, f0, g: Optional[torch.Tensor] = None):
-        har_source, noi_source, uv = self.m_source(f0, self.upp)
+        har_source = self.m_source(f0, self.upp)
         har_source = har_source.transpose(1, 2)
         x = self.conv_pre(x)
         if g is not None:
@@ -450,7 +440,6 @@ class SynthesizerTrnMsNSFsid(nn.Module):
         sr,
         **kwargs,
     ):
-        print(f"using sid")
         super(SynthesizerTrnMsNSFsid, self).__init__()
         if isinstance(sr, str):
             sr = sr2sr[sr]
@@ -475,7 +464,6 @@ class SynthesizerTrnMsNSFsid(nn.Module):
             upsample_kernel_sizes,
             gin_channels=gin_channels,
             sr=sr,
-            is_half=kwargs["is_half"],
         )
         self.flow = ResidualCouplingBlock(
             inter_channels, hidden_channels, 5, 1, 3, gin_channels=gin_channels

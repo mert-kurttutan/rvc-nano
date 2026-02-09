@@ -1,7 +1,6 @@
 import os
 import traceback
 from functools import lru_cache
-from typing import Optional
 
 import librosa
 import numpy as np
