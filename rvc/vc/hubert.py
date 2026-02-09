@@ -1377,7 +1377,7 @@ def make_conv_pos(e, k, g, is_batch_norm=False):
 
 
 class TransformerEncoder(nn.Module):
-    def build_encoder_layer(self, args: dict[str, Any], **kwargs):
+    def build_encoder_layer(self, args: dict[str, Any]):
         if args.get("layer_type", "transformer") == "transformer":
             layer = TransformerSentenceEncoderLayer(
                 embed_dim=self.embedding_dim,
@@ -1445,7 +1445,7 @@ class TransformerEncoder(nn.Module):
 
         encoder_layers = args["encoder_layers"]
 
-        self.layers = nn.ModuleList([self.build_encoder_layer(args, layer_idx=ii) for ii in range(encoder_layers)])
+        self.layers = nn.ModuleList([self.build_encoder_layer(args) for _ in range(encoder_layers)])
         self.layer_norm_first = args["layer_norm_first"]
         self.layer_norm = nn.LayerNorm(self.embedding_dim)
 

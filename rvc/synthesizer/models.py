@@ -2,14 +2,12 @@ import math
 
 import torch
 from torch import nn
-from torch.nn import Conv1d, Conv2d, ConvTranspose1d
+from torch.nn import Conv1d, ConvTranspose1d
 from torch.nn import functional as F
-from torch.nn.utils import spectral_norm
 from torch.nn.utils.parametrizations import weight_norm
 
 from rvc.synthesizer import attentions, modules
 from rvc.synthesizer.commons import (
-    get_padding,
     sequence_mask,
 )
 
@@ -70,7 +68,6 @@ class ResidualCouplingBlock(nn.Module):
         gin_channels=0,
     ):
         super().__init__()
-        self.hidden_channels = hidden_channels
 
         self.flows = nn.ModuleList()
         for _ in range(n_flows):
@@ -214,12 +211,12 @@ class SineGen(torch.nn.Module):
             # fundamental component
             f0_buf[:, :, 0] = f0[:, :, 0]
             for idx in range(self.harmonic_num):
-                f0_buf[:, :, idx + 1] = f0_buf[:, :, 0] * (idx + 2)  # idx + 2: the (idx+1)-th overtone, (idx+2)-th harmonic
-            rad_values = (f0_buf / self.sampling_rate) % 1  ###%1意味着n_har的乘积无法后处理优化
+                f0_buf[:, :, idx + 1] = f0_buf[:, :, 0] * (idx + 2)
+            rad_values = (f0_buf / self.sampling_rate) % 1
             rand_ini = torch.rand(f0_buf.shape[0], f0_buf.shape[2], device=f0_buf.device)
             rand_ini[:, 0] = 0
             rad_values[:, 0, :] = rad_values[:, 0, :] + rand_ini
-            tmp_over_one = torch.cumsum(rad_values, 1)  # % 1  #####%1意味着后面的cumsum无法再优化
+            tmp_over_one = torch.cumsum(rad_values, 1)
             tmp_over_one *= upp
             tmp_over_one = F.interpolate(
                 tmp_over_one.transpose(2, 1),
@@ -368,13 +365,6 @@ class GeneratorNSF(torch.nn.Module):
                 x_source = noise_convs(har_source)
                 x = x + x_source
                 xs: torch.Tensor | None = None
-                # l = [i * self.num_kernels + j for j in range(self.num_kernels)]
-                # for j, resblock in enumerate(self.resblocks):
-                #     if j in l:
-                #         if xs is None:
-                #             xs = resblock(x)
-                #         else:
-                #             xs += resblock(x)
                 lower_bound = max(i * self.num_kernels, 0)
                 upper_bound = min((i + 1) * self.num_kernels, len(self.resblocks) - 1)
                 for j in range(lower_bound, upper_bound):
@@ -421,13 +411,10 @@ class SynthesizerTrnMsNSFsid(nn.Module):
         spk_embed_dim,
         gin_channels,
         sr,
-        **kwargs,
     ):
         super().__init__()
         if isinstance(sr, str):
             sr = sr2sr[sr]
-        self.hidden_channels = hidden_channels
-        self.resblock = resblock
         self.enc_p = TextEncoder(
             embedding_dims,
             inter_channels,
@@ -488,11 +475,8 @@ class SynthesizerTrnMsNSFsid_nono(nn.Module):
         spk_embed_dim,
         gin_channels,
         sr=None,
-        **kwargs,
     ):
         super().__init__()
-        self.hidden_channels = hidden_channels
-        self.resblock = resblock
         self.enc_p = TextEncoder(
             embedding_dims,
             inter_channels,
@@ -528,112 +512,3 @@ class SynthesizerTrnMsNSFsid_nono(nn.Module):
         z = self.flow(z_p, x_mask, g=g)
         o = self.dec(z * x_mask, g=g)
         return o
-
-
-class DiscriminatorS(torch.nn.Module):
-    def __init__(self, use_spectral_norm=False):
-        super().__init__()
-        norm_f = weight_norm if not use_spectral_norm else spectral_norm
-        self.convs = nn.ModuleList(
-            [
-                norm_f(Conv1d(1, 16, 15, 1, padding=7)),
-                norm_f(Conv1d(16, 64, 41, 4, groups=4, padding=20)),
-                norm_f(Conv1d(64, 256, 41, 4, groups=16, padding=20)),
-                norm_f(Conv1d(256, 1024, 41, 4, groups=64, padding=20)),
-                norm_f(Conv1d(1024, 1024, 41, 4, groups=256, padding=20)),
-                norm_f(Conv1d(1024, 1024, 5, 1, padding=2)),
-            ]
-        )
-        self.conv_post = norm_f(Conv1d(1024, 1, 3, 1, padding=1))
-
-    def forward(self, x):
-        fmap = []
-
-        for conv in self.convs:
-            x = conv(x)
-            x = F.leaky_relu(x, modules.LRELU_SLOPE)
-            fmap.append(x)
-        x = self.conv_post(x)
-        fmap.append(x)
-        x = torch.flatten(x, 1, -1)
-
-        return x, fmap
-
-
-class DiscriminatorP(torch.nn.Module):
-    def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False):
-        super().__init__()
-        self.period = period
-        self.use_spectral_norm = use_spectral_norm
-        norm_f = weight_norm if not use_spectral_norm else spectral_norm
-        self.convs = nn.ModuleList(
-            [
-                norm_f(
-                    Conv2d(
-                        1,
-                        32,
-                        (kernel_size, 1),
-                        (stride, 1),
-                        padding=(get_padding(kernel_size, 1), 0),
-                    )
-                ),
-                norm_f(
-                    Conv2d(
-                        32,
-                        128,
-                        (kernel_size, 1),
-                        (stride, 1),
-                        padding=(get_padding(kernel_size, 1), 0),
-                    )
-                ),
-                norm_f(
-                    Conv2d(
-                        128,
-                        512,
-                        (kernel_size, 1),
-                        (stride, 1),
-                        padding=(get_padding(kernel_size, 1), 0),
-                    )
-                ),
-                norm_f(
-                    Conv2d(
-                        512,
-                        1024,
-                        (kernel_size, 1),
-                        (stride, 1),
-                        padding=(get_padding(kernel_size, 1), 0),
-                    )
-                ),
-                norm_f(
-                    Conv2d(
-                        1024,
-                        1024,
-                        (kernel_size, 1),
-                        1,
-                        padding=(get_padding(kernel_size, 1), 0),
-                    )
-                ),
-            ]
-        )
-        self.conv_post = norm_f(Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
-
-    def forward(self, x):
-        fmap = []
-
-        # 1d to 2d
-        b, c, t = x.shape
-        if t % self.period != 0:  # pad first
-            n_pad = self.period - (t % self.period)
-            x = F.pad(x, (0, n_pad), "reflect")
-            t = t + n_pad
-        x = x.view(b, c, t // self.period, self.period)
-
-        for conv in self.convs:
-            x = conv(x)
-            x = F.leaky_relu(x, modules.LRELU_SLOPE)
-            fmap.append(x)
-        x = self.conv_post(x)
-        fmap.append(x)
-        x = torch.flatten(x, 1, -1)
-
-        return x, fmap

@@ -105,30 +105,11 @@ class ResBlock1(torch.nn.Module):
                         channels,
                         kernel_size,
                         1,
-                        dilation=dilation[0],
-                        padding=get_padding(kernel_size, dilation[0]),
+                        dilation=d_value,
+                        padding=get_padding(kernel_size, d_value),
                     )
-                ),
-                weight_norm(
-                    Conv1d(
-                        channels,
-                        channels,
-                        kernel_size,
-                        1,
-                        dilation=dilation[1],
-                        padding=get_padding(kernel_size, dilation[1]),
-                    )
-                ),
-                weight_norm(
-                    Conv1d(
-                        channels,
-                        channels,
-                        kernel_size,
-                        1,
-                        dilation=dilation[2],
-                        padding=get_padding(kernel_size, dilation[2]),
-                    )
-                ),
+                )
+                for d_value in dilation
             ]
         )
 
@@ -143,27 +124,8 @@ class ResBlock1(torch.nn.Module):
                         dilation=1,
                         padding=get_padding(kernel_size, 1),
                     )
-                ),
-                weight_norm(
-                    Conv1d(
-                        channels,
-                        channels,
-                        kernel_size,
-                        1,
-                        dilation=1,
-                        padding=get_padding(kernel_size, 1),
-                    )
-                ),
-                weight_norm(
-                    Conv1d(
-                        channels,
-                        channels,
-                        kernel_size,
-                        1,
-                        dilation=1,
-                        padding=get_padding(kernel_size, 1),
-                    )
-                ),
+                )
+                for _ in dilation
             ]
         )
         self.lrelu_slope = LRELU_SLOPE
@@ -189,20 +151,11 @@ class ResBlock2(torch.nn.Module):
                         channels,
                         kernel_size,
                         1,
-                        dilation=dilation[0],
-                        padding=get_padding(kernel_size, dilation[0]),
+                        dilation=d_value,
+                        padding=get_padding(kernel_size, d_value),
                     )
-                ),
-                weight_norm(
-                    Conv1d(
-                        channels,
-                        channels,
-                        kernel_size,
-                        1,
-                        dilation=dilation[1],
-                        padding=get_padding(kernel_size, dilation[1]),
-                    )
-                ),
+                )
+                for d_value in dilation
             ]
         )
         self.lrelu_slope = LRELU_SLOPE

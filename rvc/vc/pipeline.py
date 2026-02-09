@@ -93,11 +93,6 @@ class Pipeline:
             if not hasattr(self, "model_rmvpe"):
                 from rvc.lib.rmvpe import RMVPE
 
-                # self.model_rmvpe = RMVPE(
-                #     "%s/rmvpe.pt" % os.environ["rmvpe_root"],
-                #     is_half=self.is_half,
-                #     device=self.device,
-                # )
                 self.model_rmvpe = RMVPE(
                     f"{os.environ['rmvpe_root']}/rmvpe.pt",
                     is_half=self.is_half,

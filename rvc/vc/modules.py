@@ -47,12 +47,8 @@ class VC:
         synthesizer_class = {
             1: SynthesizerTrnMsNSFsid,
             0: SynthesizerTrnMsNSFsid_nono,
-            # ("v2", 1): SynthesizerTrnMs768NSFsid,
-            # ("v2", 0): SynthesizerTrnMs768NSFsid_nono,
         }
-        self.net_g = synthesizer_class.get((self.version, self.if_f0), SynthesizerTrnMsNSFsid)(
-            *self.rvc_model_config, is_half=self.config.is_half
-        )
+        self.net_g = synthesizer_class.get((self.version, self.if_f0), SynthesizerTrnMsNSFsid)(*self.rvc_model_config)
 
         self.net_g.load_state_dict(rvc_state, strict=False)
         self.net_g.eval().to(self.config.device)
