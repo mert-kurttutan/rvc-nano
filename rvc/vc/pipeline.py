@@ -42,6 +42,7 @@ class Pipeline(object):
             config.x_max,
             config.is_half,
         )
+        print(f"tgt_sr: {tgt_sr}")
         self.sr = 16000
         self.window = 160
         self.t_pad = self.sr * self.x_pad
@@ -58,10 +59,7 @@ class Pipeline(object):
         p_len,
         f0_up_key,
         f0_method,
-        filter_radius,
-        inp_f0=None,
     ):
-        time_step = self.window / self.sr * 1000
         f0_min = 50
         f0_max = 1100
         f0_mel_min = 1127 * np.log(1 + f0_min / 700)
@@ -70,7 +68,7 @@ class Pipeline(object):
             f0 = (
                 parselmouth.Sound(x, self.sr)
                 .to_pitch_ac(
-                    time_step=time_step / 1000,
+                    time_step=self.window / self.sr,
                     voicing_threshold=0.6,
                     pitch_floor=f0_min,
                     pitch_ceiling=f0_max,
@@ -114,18 +112,6 @@ class Pipeline(object):
                 )
             f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
         f0 *= pow(2, f0_up_key / 12)
-        tf0 = self.sr // self.window  # 每秒f0点数
-        if inp_f0 is not None:
-            delta_t = np.round(
-                (inp_f0[:, 0].max() - inp_f0[:, 0].min()) * tf0 + 1
-            ).astype("int16")
-            replace_f0 = np.interp(
-                list(range(delta_t)), inp_f0[:, 0] * 100, inp_f0[:, 1]
-            )
-            shape = f0[self.x_pad * tf0 : self.x_pad * tf0 + len(replace_f0)].shape[0]
-            f0[self.x_pad * tf0 : self.x_pad * tf0 + len(replace_f0)] = replace_f0[
-                :shape
-            ]
         f0bak = f0.copy()
         f0_mel = 1127 * np.log(1 + f0 / 700)
         f0_mel[f0_mel > 0] = (f0_mel[f0_mel > 0] - f0_mel_min) * 254 / (
@@ -133,7 +119,7 @@ class Pipeline(object):
         ) + 1
         f0_mel[f0_mel <= 1] = 1
         f0_mel[f0_mel > 255] = 255
-        f0_coarse = np.rint(f0_mel).astype(np.int32)
+        f0_coarse = np.rint(f0_mel)
 
         f0_coarse = f0_coarse[:p_len]
         f0bak = f0bak[:p_len]
@@ -232,13 +218,11 @@ class Pipeline(object):
         file_index,
         index_rate,
         if_f0,
-        filter_radius,
         tgt_sr,
         resample_sr,
         rms_mix_rate,
         version,
         protect,
-        f0_file: Optional[str] = None,
     ):
         if (
             file_index
@@ -260,9 +244,11 @@ class Pipeline(object):
         audio = signal.filtfilt(bh, ah, audio)
         audio_pad = np.pad(audio, (self.window // 2, self.window // 2), mode="reflect")
         opt_ts = []
+        print(f"t_max: {self.t_max}, audio_pad.shape[0]: {audio_pad.shape[0]}")
         if audio_pad.shape[0] > self.t_max:
             audio_sum = np.zeros_like(audio)
             for i in range(self.window):
+                print(f"audio_sum: {i}/{self.window}")
                 audio_sum += np.abs(audio_pad[i : i - self.window])
             for t in range(self.t_center, audio.shape[0], self.t_center):
                 opt_ts.append(
@@ -278,17 +264,6 @@ class Pipeline(object):
         t = None
         audio_pad = np.pad(audio, (self.t_pad, self.t_pad), mode="reflect")
         p_len = audio_pad.shape[0] // self.window
-        inp_f0 = None
-        if f0_file is not None:
-            try:
-                with open(f0_file, "r") as f:
-                    lines = f.read().strip("\n").split("\n")
-                inp_f0 = []
-                for line in lines:
-                    inp_f0.append([float(i) for i in line.split(",")])
-                inp_f0 = np.array(inp_f0, dtype="float32")
-            except:
-                traceback.print_exc()
         sid = torch.tensor(sid, device=self.device).unsqueeze(0).long()
         pitch, pitchf = None, None
         if if_f0 == 1:
@@ -297,8 +272,6 @@ class Pipeline(object):
                 p_len,
                 f0_up_key,
                 f0_method,
-                filter_radius,
-                inp_f0,
             )
         else:
             pitch, pitchf = None, None

@@ -286,7 +286,6 @@ class ResidualCouplingLayer(nn.Module):
         x: torch.Tensor,
         x_mask: torch.Tensor,
         g: Optional[torch.Tensor] = None,
-        reverse: bool = False,
     ):
         x0, x1 = torch.split(x, [self.half_channels] * 2, 1)
         h = self.pre(x0) * x_mask
@@ -298,12 +297,6 @@ class ResidualCouplingLayer(nn.Module):
             m = stats
             logs = torch.zeros_like(m)
 
-        if not reverse:
-            x1 = m + x1 * torch.exp(logs) * x_mask
-            x = torch.cat([x0, x1], 1)
-            logdet = torch.sum(logs, [1, 2])
-            return x, logdet
-        else:
-            x1 = (x1 - m) * torch.exp(-logs) * x_mask
-            x = torch.cat([x0, x1], 1)
-            return x, torch.zeros([1])
+        x1 = (x1 - m) * torch.exp(-logs) * x_mask
+        x = torch.cat([x0, x1], 1)
+        return x, torch.zeros([1])

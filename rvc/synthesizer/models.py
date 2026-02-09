@@ -15,9 +15,10 @@ from rvc.synthesizer.commons import (
 )
 
 
-class TextEncoder256(nn.Module):
+class TextEncoder(nn.Module):
     def __init__(
         self,
+        embedding_dims,
         out_channels,
         hidden_channels,
         filter_channels,
@@ -26,14 +27,14 @@ class TextEncoder256(nn.Module):
         kernel_size,
         f0=True,
     ):
-        super(TextEncoder256, self).__init__()
+        super(TextEncoder, self).__init__()
         self.out_channels = out_channels
         self.hidden_channels = hidden_channels
         self.filter_channels = filter_channels
         self.n_heads = n_heads
         self.n_layers = n_layers
         self.kernel_size = kernel_size
-        self.emb_phone = nn.Linear(256, hidden_channels)
+        self.emb_phone = nn.Linear(embedding_dims, hidden_channels)
         self.lrelu = nn.LeakyReLU(0.1, inplace=True)
         if f0:
             self.emb_pitch = nn.Embedding(256, hidden_channels)  # pitch 256
@@ -49,53 +50,6 @@ class TextEncoder256(nn.Module):
     def forward(
         self, phone: torch.Tensor, pitch: Optional[torch.Tensor], lengths: torch.Tensor
     ):
-        if pitch is None:
-            x = self.emb_phone(phone)
-        else:
-            x = self.emb_phone(phone) + self.emb_pitch(pitch)
-        x = x * math.sqrt(self.hidden_channels)  # [b, t, h]
-        x = self.lrelu(x)
-        x = torch.transpose(x, 1, -1)  # [b, h, t]
-        x_mask = torch.unsqueeze(sequence_mask(lengths, x.size(2)), 1).to(x.dtype)
-        x = self.encoder(x * x_mask, x_mask)
-        stats = self.proj(x) * x_mask
-
-        m, logs = torch.split(stats, self.out_channels, dim=1)
-        return m, logs, x_mask
-
-
-class TextEncoder768(nn.Module):
-    def __init__(
-        self,
-        out_channels,
-        hidden_channels,
-        filter_channels,
-        n_heads,
-        n_layers,
-        kernel_size,
-        f0=True,
-    ):
-        super(TextEncoder768, self).__init__()
-        self.out_channels = out_channels
-        self.hidden_channels = hidden_channels
-        self.filter_channels = filter_channels
-        self.n_heads = n_heads
-        self.n_layers = n_layers
-        self.kernel_size = kernel_size
-        self.emb_phone = nn.Linear(768, hidden_channels)
-        self.lrelu = nn.LeakyReLU(0.1, inplace=True)
-        if f0:
-            self.emb_pitch = nn.Embedding(256, hidden_channels)  # pitch 256
-        self.encoder = attentions.Encoder(
-            hidden_channels,
-            filter_channels,
-            n_heads,
-            n_layers,
-            kernel_size,
-        )
-        self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
-
-    def forward(self, phone: torch.Tensor, pitch: torch.Tensor, lengths: torch.Tensor):
         if pitch is None:
             x = self.emb_phone(phone)
         else:
@@ -151,14 +105,9 @@ class ResidualCouplingBlock(nn.Module):
         x: torch.Tensor,
         x_mask: torch.Tensor,
         g: Optional[torch.Tensor] = None,
-        reverse: bool = False,
     ):
-        if not reverse:
-            for flow in self.flows:
-                x, _ = flow(x, x_mask, g=g, reverse=reverse)
-        else:
-            for flow in self.flows[::-1]:
-                x, _ = flow.forward(x, x_mask, g=g, reverse=reverse)
+        for flow in self.flows[::-1]:
+            x, _ = flow.forward(x, x_mask, g=g)
         return x
 
 
@@ -488,9 +437,10 @@ sr2sr = {
 }
 
 
-class SynthesizerTrnMs256NSFsid(nn.Module):
+class SynthesizerTrnMsNSFsid(nn.Module):
     def __init__(
         self,
+        embedding_dims,
         spec_channels,
         segment_size,
         inter_channels,
@@ -511,7 +461,7 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
         sr,
         **kwargs,
     ):
-        super(SynthesizerTrnMs256NSFsid, self).__init__()
+        super(SynthesizerTrnMsNSFsid, self).__init__()
         if isinstance(sr, str):
             sr = sr2sr[sr]
         self.spec_channels = spec_channels
@@ -531,7 +481,8 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
         self.gin_channels = gin_channels
         # self.hop_length = hop_length#
         self.spk_embed_dim = spk_embed_dim
-        self.enc_p = TextEncoder256(
+        self.enc_p = TextEncoder(
+            embedding_dims,
             inter_channels,
             hidden_channels,
             filter_channels,
@@ -567,97 +518,15 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
         g = self.emb_g(sid).unsqueeze(-1)
         m_p, logs_p, x_mask = self.enc_p(phone, pitch, phone_lengths)
         z_p = (m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666) * x_mask
-        z = self.flow(z_p, x_mask, g=g, reverse=True)
+        z = self.flow(z_p, x_mask, g=g)
         o = self.dec(z * x_mask, nsff0, g=g)
         return o
 
 
-class SynthesizerTrnMs768NSFsid(nn.Module):
+class SynthesizerTrnMsNSFsid_nono(nn.Module):
     def __init__(
         self,
-        spec_channels,
-        segment_size,
-        inter_channels,
-        hidden_channels,
-        filter_channels,
-        n_heads,
-        n_layers,
-        kernel_size,
-        resblock,
-        resblock_kernel_sizes,
-        resblock_dilation_sizes,
-        upsample_rates,
-        upsample_initial_channel,
-        upsample_kernel_sizes,
-        spk_embed_dim,
-        gin_channels,
-        sr,
-        **kwargs,
-    ):
-        super(SynthesizerTrnMs768NSFsid, self).__init__()
-        if isinstance(sr, str):
-            sr = sr2sr[sr]
-        self.spec_channels = spec_channels
-        self.inter_channels = inter_channels
-        self.hidden_channels = hidden_channels
-        self.filter_channels = filter_channels
-        self.n_heads = n_heads
-        self.n_layers = n_layers
-        self.kernel_size = kernel_size
-        self.resblock = resblock
-        self.resblock_kernel_sizes = resblock_kernel_sizes
-        self.resblock_dilation_sizes = resblock_dilation_sizes
-        self.upsample_rates = upsample_rates
-        self.upsample_initial_channel = upsample_initial_channel
-        self.upsample_kernel_sizes = upsample_kernel_sizes
-        self.segment_size = segment_size
-        self.gin_channels = gin_channels
-        # self.hop_length = hop_length#
-        self.spk_embed_dim = spk_embed_dim
-        self.enc_p = TextEncoder768(
-            inter_channels,
-            hidden_channels,
-            filter_channels,
-            n_heads,
-            n_layers,
-            kernel_size,
-        )
-        self.dec = GeneratorNSF(
-            inter_channels,
-            resblock,
-            resblock_kernel_sizes,
-            resblock_dilation_sizes,
-            upsample_rates,
-            upsample_initial_channel,
-            upsample_kernel_sizes,
-            gin_channels=gin_channels,
-            sr=sr,
-            is_half=kwargs["is_half"],
-        )
-        self.flow = ResidualCouplingBlock(
-            inter_channels, hidden_channels, 5, 1, 3, gin_channels=gin_channels
-        )
-        self.emb_g = nn.Embedding(self.spk_embed_dim, gin_channels)
-
-    def forward(
-        self,
-        phone: torch.Tensor,
-        phone_lengths: torch.Tensor,
-        pitch: torch.Tensor,
-        nsff0: torch.Tensor,
-        sid: torch.Tensor,
-    ):
-        g = self.emb_g(sid).unsqueeze(-1)
-        m_p, logs_p, x_mask = self.enc_p(phone, pitch, phone_lengths)
-        z_p = (m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666) * x_mask
-        z = self.flow(z_p, x_mask, g=g, reverse=True)
-        o = self.dec(z * x_mask, nsff0, g=g)
-        return o
-
-
-class SynthesizerTrnMs256NSFsid_nono(nn.Module):
-    def __init__(
-        self,
+        embedding_dims,
         spec_channels,
         segment_size,
         inter_channels,
@@ -677,7 +546,7 @@ class SynthesizerTrnMs256NSFsid_nono(nn.Module):
         sr=None,
         **kwargs,
     ):
-        super(SynthesizerTrnMs256NSFsid_nono, self).__init__()
+        super(SynthesizerTrnMsNSFsid_nono, self).__init__()
         self.spec_channels = spec_channels
         self.inter_channels = inter_channels
         self.hidden_channels = hidden_channels
@@ -695,7 +564,8 @@ class SynthesizerTrnMs256NSFsid_nono(nn.Module):
         self.gin_channels = gin_channels
         # self.hop_length = hop_length#
         self.spk_embed_dim = spk_embed_dim
-        self.enc_p = TextEncoder256(
+        self.enc_p = TextEncoder(
+            embedding_dims,
             inter_channels,
             hidden_channels,
             filter_channels,
@@ -728,85 +598,7 @@ class SynthesizerTrnMs256NSFsid_nono(nn.Module):
         g = self.emb_g(sid).unsqueeze(-1)
         m_p, logs_p, x_mask = self.enc_p(phone, None, phone_lengths)
         z_p = (m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666) * x_mask
-        z = self.flow(z_p, x_mask, g=g, reverse=True)
-        o = self.dec(z * x_mask, g=g)
-        return o
-
-
-class SynthesizerTrnMs768NSFsid_nono(nn.Module):
-    def __init__(
-        self,
-        spec_channels,
-        segment_size,
-        inter_channels,
-        hidden_channels,
-        filter_channels,
-        n_heads,
-        n_layers,
-        kernel_size,
-        resblock,
-        resblock_kernel_sizes,
-        resblock_dilation_sizes,
-        upsample_rates,
-        upsample_initial_channel,
-        upsample_kernel_sizes,
-        spk_embed_dim,
-        gin_channels,
-        sr=None,
-        **kwargs,
-    ):
-        super(SynthesizerTrnMs768NSFsid_nono, self).__init__()
-        self.spec_channels = spec_channels
-        self.inter_channels = inter_channels
-        self.hidden_channels = hidden_channels
-        self.filter_channels = filter_channels
-        self.n_heads = n_heads
-        self.n_layers = n_layers
-        self.kernel_size = kernel_size
-        self.resblock = resblock
-        self.resblock_kernel_sizes = resblock_kernel_sizes
-        self.resblock_dilation_sizes = resblock_dilation_sizes
-        self.upsample_rates = upsample_rates
-        self.upsample_initial_channel = upsample_initial_channel
-        self.upsample_kernel_sizes = upsample_kernel_sizes
-        self.segment_size = segment_size
-        self.gin_channels = gin_channels
-        # self.hop_length = hop_length#
-        self.spk_embed_dim = spk_embed_dim
-        self.enc_p = TextEncoder768(
-            inter_channels,
-            hidden_channels,
-            filter_channels,
-            n_heads,
-            n_layers,
-            kernel_size,
-            f0=False,
-        )
-        self.dec = Generator(
-            inter_channels,
-            resblock,
-            resblock_kernel_sizes,
-            resblock_dilation_sizes,
-            upsample_rates,
-            upsample_initial_channel,
-            upsample_kernel_sizes,
-            gin_channels=gin_channels,
-        )
-        self.flow = ResidualCouplingBlock(
-            inter_channels, hidden_channels, 5, 1, 3, gin_channels=gin_channels
-        )
-        self.emb_g = nn.Embedding(self.spk_embed_dim, gin_channels)
-
-    def forward(
-        self,
-        phone: torch.Tensor,
-        phone_lengths: torch.Tensor,
-        sid: torch.Tensor,
-    ):
-        g = self.emb_g(sid).unsqueeze(-1)
-        m_p, logs_p, x_mask = self.enc_p(phone, None, phone_lengths)
-        z_p = (m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666) * x_mask
-        z = self.flow(z_p, x_mask, g=g, reverse=True)
+        z = self.flow(z_p, x_mask, g=g)
         o = self.dec(z * x_mask, g=g)
         return o
 
