@@ -7,7 +7,7 @@ from librosa.filters import mel
 
 class BiGRU(nn.Module):
     def __init__(self, input_features, hidden_features, num_layers):
-        super(BiGRU, self).__init__()
+        super().__init__()
         self.gru = nn.GRU(
             input_features,
             hidden_features,
@@ -31,15 +31,15 @@ class E2E(nn.Module):
         in_channels=1,
         en_out_channels=16,
     ):
-        super(E2E, self).__init__()
-        self.unet = DeepUnet(
-            kernel_size,
-            n_blocks,
-            en_de_layers,
-            inter_layers,
-            in_channels,
-            en_out_channels,
-        )
+        super().__init__()
+        # self.unet = DeepUnet(
+        #     kernel_size,
+        #     n_blocks,
+        #     en_de_layers,
+        #     inter_layers,
+        #     in_channels,
+        #     en_out_channels,
+        # )
         self.cnn = nn.Conv2d(en_out_channels, 3, (3, 3), padding=(1, 1))
         if n_gru:
             self.fc = nn.Sequential(
@@ -49,15 +49,13 @@ class E2E(nn.Module):
                 nn.Sigmoid(),
             )
         else:
-            self.fc = nn.Sequential(
-                nn.Linear(3 * nn.N_MELS, nn.N_CLASS), nn.Dropout(0.25), nn.Sigmoid()
-            )
+            self.fc = nn.Sequential(nn.Linear(3 * nn.N_MELS, nn.N_CLASS), nn.Dropout(0.25), nn.Sigmoid())
 
     def forward(self, mel):
         mel = mel.transpose(-1, -2).unsqueeze(1)
-        x = self.cnn(self.unet(mel)).transpose(1, 2).flatten(-2)
-        x = self.fc(x)
-        return x
+        # x = self.cnn(self.unet(mel)).transpose(1, 2).flatten(-2)
+        # x = self.fc(x)
+        # return x
 
 
 class MelSpectrogram(torch.nn.Module):
@@ -101,9 +99,7 @@ class MelSpectrogram(torch.nn.Module):
         hop_length_new = int(np.round(self.hop_length * speed))
         keyshift_key = str(keyshift) + "_" + str(audio.device)
         if keyshift_key not in self.hann_window:
-            self.hann_window[keyshift_key] = torch.hann_window(win_length_new).to(
-                audio.device
-            )
+            self.hann_window[keyshift_key] = torch.hann_window(win_length_new).to(audio.device)
         fft = torch.stft(
             audio,
             n_fft=n_fft_new,
@@ -135,9 +131,7 @@ class RMVPE:
         if device is None:
             device = "cuda:0" if torch.cuda.is_available() else "cpu"
         self.device = device
-        self.mel_extractor = MelSpectrogram(
-            is_half, 128, 16000, 1024, 160, None, 30, 8000
-        ).to(device)
+        self.mel_extractor = MelSpectrogram(is_half, 128, 16000, 1024, 160, None, 30, 8000).to(device)
 
         if str(self.device) == "cuda":
             self.device = torch.device("cuda:0")
@@ -178,9 +172,7 @@ class RMVPE:
         return f0
 
     def infer_from_audio(self, audio, thred=0.03):
-        mel = self.mel_extractor(
-            torch.from_numpy(audio).float().to(self.device).unsqueeze(0), center=True
-        )
+        mel = self.mel_extractor(torch.from_numpy(audio).float().to(self.device).unsqueeze(0), center=True)
         hidden = self.mel2hidden(mel)
         hidden = hidden.squeeze(0).cpu().numpy()
         if self.is_half:

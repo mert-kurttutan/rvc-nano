@@ -23,7 +23,7 @@ dependencies = [
 github = "https://github.com/RVC-Project/Retrieval-based-Voice-Conversion"
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "ruff"]
 
 [build-system]
 requires = ["hatchling>=1.22.0,<2.0.0"]
@@ -46,3 +46,17 @@ explicit = true
 torch = { index = "pytorch" }
 torchvision = { index = "pytorch" }
 torchaudio = { index = "pytorch-cpu" }
+
+[tool.ruff]
+target-version = "py310"
+line-length = 128
+indent-width = 4
+extend-exclude = ["assets", "output", "result", "notebooks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

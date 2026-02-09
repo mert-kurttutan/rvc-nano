@@ -1,5 +1,4 @@
 import os
-import traceback
 from io import BytesIO
 
 import av
@@ -31,9 +30,7 @@ def audio2(i, o, format, sr):
 
 def load_audio(file, sr):
     if not os.path.exists(file):
-        raise RuntimeError(
-            "You input a wrong audio path that does not exists, please fix it!"
-        )
+        raise RuntimeError("You input a wrong audio path that does not exists, please fix it!")
     try:
         with open(file, "rb") as f:
             with BytesIO() as out:
@@ -46,5 +43,5 @@ def load_audio(file, sr):
             audio = np.mean(audio, -1)
         return librosa.resample(audio, orig_sr=file[0], target_sr=16000)
 
-    except Exception:
-        raise RuntimeError(traceback.format_exc())
+    # except Exception:
+    #     raise RuntimeError(traceback.format_exc())

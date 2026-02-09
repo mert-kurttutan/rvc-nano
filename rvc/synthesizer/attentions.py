@@ -1,5 +1,4 @@
 import math
-from typing import Optional
 
 import torch
 from torch import nn
@@ -18,7 +17,7 @@ class Encoder(nn.Module):
         kernel_size=1,
         window_size=10,
     ):
-        super(Encoder, self).__init__()
+        super().__init__()
         self.n_heads = n_heads
         self.n_layers = int(n_layers)
         self.kernel_size = kernel_size
@@ -28,7 +27,7 @@ class Encoder(nn.Module):
         self.norm_layers_1 = nn.ModuleList()
         self.ffn_layers = nn.ModuleList()
         self.norm_layers_2 = nn.ModuleList()
-        for i in range(self.n_layers):
+        for _ in range(self.n_layers):
             self.attn_layers.append(
                 MultiHeadAttention(
                     hidden_channels,
@@ -51,9 +50,7 @@ class Encoder(nn.Module):
     def forward(self, x, x_mask):
         attn_mask = x_mask.unsqueeze(2) * x_mask.unsqueeze(-1)
         x = x * x_mask
-        zippep = zip(
-            self.attn_layers, self.norm_layers_1, self.ffn_layers, self.norm_layers_2
-        )
+        zippep = zip(self.attn_layers, self.norm_layers_1, self.ffn_layers, self.norm_layers_2, strict=True)
         for attn_layers, norm_layers_1, ffn_layers, norm_layers_2 in zippep:
             y = attn_layers(x, x, attn_mask)
             x = norm_layers_1(x + y)
@@ -72,7 +69,7 @@ class MultiHeadAttention(nn.Module):
         n_heads,
         window_size=None,
     ):
-        super(MultiHeadAttention, self).__init__()
+        super().__init__()
         assert channels % n_heads == 0
 
         self.n_heads = n_heads
@@ -87,22 +84,14 @@ class MultiHeadAttention(nn.Module):
         if window_size is not None:
             n_heads_rel = 1
             rel_stddev = self.k_channels**-0.5
-            self.emb_rel_k = nn.Parameter(
-                torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels)
-                * rel_stddev
-            )
-            self.emb_rel_v = nn.Parameter(
-                torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels)
-                * rel_stddev
-            )
+            self.emb_rel_k = nn.Parameter(torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels) * rel_stddev)
+            self.emb_rel_v = nn.Parameter(torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels) * rel_stddev)
 
         nn.init.xavier_uniform_(self.conv_q.weight)
         nn.init.xavier_uniform_(self.conv_k.weight)
         nn.init.xavier_uniform_(self.conv_v.weight)
 
-    def forward(
-        self, x: torch.Tensor, c: torch.Tensor, attn_mask: Optional[torch.Tensor] = None
-    ):
+    def forward(self, x: torch.Tensor, c: torch.Tensor, attn_mask: torch.Tensor | None = None):
         q = self.conv_q(x)
         k = self.conv_k(c)
         v = self.conv_v(c)
@@ -117,7 +106,7 @@ class MultiHeadAttention(nn.Module):
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
-        mask: Optional[torch.Tensor] = None,
+        mask: torch.Tensor | None = None,
     ):
         # reshape [b, d, t] -> [b, n_h, t, d_k]
         b, d, t_s = key.size()
@@ -128,13 +117,9 @@ class MultiHeadAttention(nn.Module):
 
         scores = torch.matmul(query / math.sqrt(self.k_channels), key.transpose(-2, -1))
         if self.window_size is not None:
-            assert t_s == t_t, (
-                "Relative attention is only available for self-attention."
-            )
+            assert t_s == t_t, "Relative attention is only available for self-attention."
             key_relative_embeddings = self._get_relative_embeddings(self.emb_rel_k, t_s)
-            rel_logits = self._matmul_with_relative_keys(
-                query / math.sqrt(self.k_channels), key_relative_embeddings
-            )
+            rel_logits = self._matmul_with_relative_keys(query / math.sqrt(self.k_channels), key_relative_embeddings)
             scores_local = self._relative_position_to_absolute_position(rel_logits)
             scores = scores + scores_local
         if mask is not None:
@@ -143,15 +128,9 @@ class MultiHeadAttention(nn.Module):
         output = torch.matmul(p_attn, value)
         if self.window_size is not None:
             relative_weights = self._absolute_position_to_relative_position(p_attn)
-            value_relative_embeddings = self._get_relative_embeddings(
-                self.emb_rel_v, t_s
-            )
-            output = output + self._matmul_with_relative_values(
-                relative_weights, value_relative_embeddings
-            )
-        output = (
-            output.transpose(2, 3).contiguous().view(b, d, t_t)
-        )  # [b, n_h, t_t, d_k] -> [b, d, t_t]
+            value_relative_embeddings = self._get_relative_embeddings(self.emb_rel_v, t_s)
+            output = output + self._matmul_with_relative_values(relative_weights, value_relative_embeddings)
+        output = output.transpose(2, 3).contiguous().view(b, d, t_t)  # [b, n_h, t_t, d_k] -> [b, d, t_t]
         return output
 
     def _matmul_with_relative_values(self, x, y):
@@ -184,9 +163,7 @@ class MultiHeadAttention(nn.Module):
             )
         else:
             padded_relative_embeddings = relative_embeddings
-        used_relative_embeddings = padded_relative_embeddings[
-            :, slice_start_position:slice_end_position
-        ]
+        used_relative_embeddings = padded_relative_embeddings[:, slice_start_position:slice_end_position]
         return used_relative_embeddings
 
     def _relative_position_to_absolute_position(self, x):
@@ -209,9 +186,7 @@ class MultiHeadAttention(nn.Module):
         )
 
         # Reshape and slice out the padded elements.
-        x_final = x_flat.view([batch, heads, length + 1, 2 * length - 1])[
-            :, :, :length, length - 1 :
-        ]
+        x_final = x_flat.view([batch, heads, length + 1, 2 * length - 1])[:, :, :length, length - 1 :]
         return x_final
 
     def _absolute_position_to_relative_position(self, x):
@@ -254,7 +229,7 @@ class FFN(nn.Module):
         filter_channels,
         kernel_size,
     ):
-        super(FFN, self).__init__()
+        super().__init__()
         self.in_channels = in_channels
         self.kernel_size = kernel_size
 

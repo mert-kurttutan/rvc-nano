@@ -1,8 +1,6 @@
 import json
 import os
-from typing import Any
 
-import torch
 from safetensors.torch import load_file
 
 from .hubert import (
@@ -34,7 +32,7 @@ def load_model_ensemble_and_task(
     cfg = None
     task = setup_task()
 
-    with open(model_cfg_path, "r") as f:
+    with open(model_cfg_path) as f:
         cfg = json.load(f)
     model = HubertModel.build_model(cfg["model"], task)
 

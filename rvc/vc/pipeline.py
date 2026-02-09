@@ -1,6 +1,4 @@
 import os
-import traceback
-from functools import lru_cache
 
 import librosa
 import numpy as np
@@ -17,22 +15,15 @@ def change_rms(data1, sr1, data2, sr2, rate):
     rms1 = librosa.feature.rms(y=data1, frame_length=sr1 // 2 * 2, hop_length=sr1 // 2)
     rms2 = librosa.feature.rms(y=data2, frame_length=sr2 // 2 * 2, hop_length=sr2 // 2)
     rms1 = torch.from_numpy(rms1)
-    rms1 = F.interpolate(
-        rms1.unsqueeze(0), size=data2.shape[0], mode="linear"
-    ).squeeze()
+    rms1 = F.interpolate(rms1.unsqueeze(0), size=data2.shape[0], mode="linear").squeeze()
     rms2 = torch.from_numpy(rms2)
-    rms2 = F.interpolate(
-        rms2.unsqueeze(0), size=data2.shape[0], mode="linear"
-    ).squeeze()
+    rms2 = F.interpolate(rms2.unsqueeze(0), size=data2.shape[0], mode="linear").squeeze()
     rms2 = torch.max(rms2, torch.zeros_like(rms2) + 1e-6)
-    data2 *= (
-        torch.pow(rms1, torch.tensor(1 - rate))
-        * torch.pow(rms2, torch.tensor(rate - 1))
-    ).numpy()
+    data2 *= (torch.pow(rms1, torch.tensor(1 - rate)) * torch.pow(rms2, torch.tensor(rate - 1))).numpy()
     return data2
 
 
-class Pipeline(object):
+class Pipeline:
     def __init__(self, tgt_sr, config):
         self.x_pad, self.x_query, self.x_center, self.x_max, self.is_half = (
             config.x_pad,
@@ -76,9 +67,7 @@ class Pipeline(object):
             )
             pad_size = (p_len - len(f0) + 1) // 2
             if pad_size > 0 or p_len - len(f0) - pad_size > 0:
-                f0 = np.pad(
-                    f0, [[pad_size, p_len - len(f0) - pad_size]], mode="constant"
-                )
+                f0 = np.pad(f0, [[pad_size, p_len - len(f0) - pad_size]], mode="constant")
         elif f0_method == "crepe":
             model = "full"
             # Pick a batch size that doesn't cause memory errors on your gpu
@@ -104,8 +93,13 @@ class Pipeline(object):
             if not hasattr(self, "model_rmvpe"):
                 from rvc.lib.rmvpe import RMVPE
 
+                # self.model_rmvpe = RMVPE(
+                #     "%s/rmvpe.pt" % os.environ["rmvpe_root"],
+                #     is_half=self.is_half,
+                #     device=self.device,
+                # )
                 self.model_rmvpe = RMVPE(
-                    "%s/rmvpe.pt" % os.environ["rmvpe_root"],
+                    f"{os.environ['rmvpe_root']}/rmvpe.pt",
                     is_half=self.is_half,
                     device=self.device,
                 )
@@ -113,9 +107,7 @@ class Pipeline(object):
         f0 *= pow(2, f0_up_key / 12)
         f0bak = f0.copy()
         f0_mel = 1127 * np.log(1 + f0 / 700)
-        f0_mel[f0_mel > 0] = (f0_mel[f0_mel > 0] - f0_mel_min) * 254 / (
-            f0_mel_max - f0_mel_min
-        ) + 1
+        f0_mel[f0_mel > 0] = (f0_mel[f0_mel > 0] - f0_mel_min) * 254 / (f0_mel_max - f0_mel_min) + 1
         f0_mel[f0_mel <= 1] = 1
         f0_mel[f0_mel > 255] = 255
         f0_coarse = np.rint(f0_mel)
@@ -171,16 +163,11 @@ class Pipeline(object):
 
             if self.is_half:
                 npy = npy.astype("float16")
-            feats = (
-                torch.from_numpy(npy).unsqueeze(0).to(self.device) * index_rate
-                + (1 - index_rate) * feats
-            )
+            feats = torch.from_numpy(npy).unsqueeze(0).to(self.device) * index_rate + (1 - index_rate) * feats
 
         feats = F.interpolate(feats.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
         if protect < 0.5 and pitch is not None and pitchf is not None:
-            feats0 = F.interpolate(feats0.permute(0, 2, 1), scale_factor=2).permute(
-                0, 2, 1
-            )
+            feats0 = F.interpolate(feats0.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
         p_len = audio0.shape[0] // self.window
         if feats.shape[1] < p_len:
             p_len = feats.shape[1]
@@ -223,23 +210,23 @@ class Pipeline(object):
         version,
         protect,
     ):
-        if (
-            file_index
-            and file_index != ""
-            and os.path.exists(file_index)
-            and index_rate != 0
-        ):
-            try:
-                import faiss
+        # if (
+        #     file_index
+        #     and file_index != ""
+        #     and os.path.exists(file_index)
+        #     and index_rate != 0
+        # ):
+        #     try:
+        #         import faiss
 
-                index = faiss.read_index(file_index)
-                # big_npy = np.load(file_big_npy)
-                big_npy = index.reconstruct_n(0, index.ntotal)
-            except:
-                traceback.print_exc()
-                index = big_npy = None
-        else:
-            index = big_npy = None
+        #         index = faiss.read_index(file_index)
+        #         # big_npy = np.load(file_big_npy)
+        #         big_npy = index.reconstruct_n(0, index.ntotal)
+        #     except:
+        #         traceback.print_exc()
+        #         index = big_npy = None
+        # else:
+        index = big_npy = None
         audio = signal.filtfilt(bh, ah, audio)
         audio_pad = np.pad(audio, (self.window // 2, self.window // 2), mode="reflect")
         opt_ts = []
@@ -254,8 +241,7 @@ class Pipeline(object):
                     t
                     - self.t_query
                     + np.where(
-                        audio_sum[t - self.t_query : t + self.t_query]
-                        == audio_sum[t - self.t_query : t + self.t_query].min()
+                        audio_sum[t - self.t_query : t + self.t_query] == audio_sum[t - self.t_query : t + self.t_query].min()
                     )[0][0]
                 )
         s = 0
@@ -276,16 +262,8 @@ class Pipeline(object):
             pitch, pitchf = None, None
         for t in opt_ts:
             t = t // self.window * self.window
-            pitch_slice = (
-                pitch[:, s // self.window : (t + self.t_pad2) // self.window]
-                if pitch is not None
-                else None
-            )
-            pitchf_slice = (
-                pitchf[:, s // self.window : (t + self.t_pad2) // self.window]
-                if pitchf is not None
-                else None
-            )
+            pitch_slice = pitch[:, s // self.window : (t + self.t_pad2) // self.window] if pitch is not None else None
+            pitchf_slice = pitchf[:, s // self.window : (t + self.t_pad2) // self.window] if pitchf is not None else None
             audio_opt.append(
                 self.vc(
                     model,
@@ -304,9 +282,7 @@ class Pipeline(object):
             s = t
 
         pitch_slice = pitch[:, s // self.window : p_len] if pitch is not None else None
-        pitchf_slice = (
-            pitchf[:, s // self.window : p_len] if pitchf is not None else None
-        )
+        pitchf_slice = pitchf[:, s // self.window : p_len] if pitchf is not None else None
         audio_opt.append(
             self.vc(
                 model,
@@ -326,9 +302,7 @@ class Pipeline(object):
         if rms_mix_rate != 1:
             audio_opt = change_rms(audio, 16000, audio_opt, tgt_sr, rms_mix_rate)
         if tgt_sr != resample_sr >= 16000:
-            audio_opt = librosa.resample(
-                audio_opt, orig_sr=tgt_sr, target_sr=resample_sr
-            )
+            audio_opt = librosa.resample(audio_opt, orig_sr=tgt_sr, target_sr=resample_sr)
         audio_max = np.abs(audio_opt).max() / 0.99
         max_int16 = 32768
         if audio_max > 1:

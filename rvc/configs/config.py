@@ -1,7 +1,5 @@
-import argparse
 import json
 import os
-import sys
 from multiprocessing import cpu_count
 
 import torch
@@ -29,7 +27,7 @@ class Config:
     def load_config_json() -> dict:
         configs: dict = {}
         for config_file in version_config_list:
-            with open(config_file, "r") as handle:
+            with open(config_file) as handle:
                 configs[config_file] = json.load(handle)
         return configs
 
@@ -66,10 +64,7 @@ class Config:
         ):
             self.is_half = False
             self.use_fp32_config()
-        self.gpu_mem = int(
-            torch.cuda.get_device_properties(i_device).total_memory / 1024 / 1024 / 1024
-            + 0.4
-        )
+        self.gpu_mem = int(torch.cuda.get_device_properties(i_device).total_memory / 1024 / 1024 / 1024 + 0.4)
 
     def use_cpu(self) -> None:
         self.device = self.instead = "cpu"

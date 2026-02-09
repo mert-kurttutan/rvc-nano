@@ -1,10 +1,11 @@
+import json
+
 import torch
 from safetensors.torch import save_file
 
 rvc_model_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/weights/rvc-model.pt"
 
 hubert_model_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/hubert_base.pt"
-import json
 
 
 def convert_to_safetensors(

@@ -1,6 +1,7 @@
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal, Optional
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -48,7 +49,7 @@ class HubertPretrainingConfig:
             )
         },
     )
-    label_dir: Optional[str] = field(
+    label_dir: str | None = field(
         default=None,
         metadata={
             "help": "if set, looks for labels in this directory instead",
@@ -60,10 +61,7 @@ class HubertPretrainingConfig:
     )
     sample_rate: int = field(
         default=16_000,
-        metadata={
-            "help": "target sample rate. audio files will be up/down "
-            "sampled to this rate"
-        },
+        metadata={"help": "target sample rate. audio files will be up/down sampled to this rate"},
     )
     normalize: bool = field(
         default=False,
@@ -73,35 +71,33 @@ class HubertPretrainingConfig:
         default=False,
         metadata={"help": "pad shorter samples instead of cropping"},
     )
-    max_keep_size: Optional[int] = field(
+    max_keep_size: int | None = field(
         default=None,
         metadata={"help": "exclude sample longer than this"},
     )
-    max_sample_size: Optional[int] = field(
+    max_sample_size: int | None = field(
         default=None,
         metadata={"help": "max sample size to crop to for batching"},
     )
-    min_sample_size: Optional[int] = field(
+    min_sample_size: int | None = field(
         default=None,
         metadata={"help": "min sample size to crop to for batching"},
     )
-    single_target: Optional[bool] = field(
+    single_target: bool | None = field(
         default=False,
-        metadata={
-            "help": "if set, AddTargetDatasets outputs same keys as AddTargetDataset"
-        },
+        metadata={"help": "if set, AddTargetDatasets outputs same keys as AddTargetDataset"},
     )
-    random_crop: Optional[bool] = field(
+    random_crop: bool | None = field(
         default=True,
         metadata={"help": "always crop from the beginning if false"},
     )
-    pad_audio: Optional[bool] = field(
+    pad_audio: bool | None = field(
         default=False,
         metadata={"help": "pad audio to the longest one in the batch if true"},
     )
 
 
-class HubertPretrainingTask(object):
+class HubertPretrainingTask:
     cfg: HubertPretrainingConfig
 
     def __init__(
@@ -141,11 +137,7 @@ def index_put(tensor, indices, value):
 
 
 def gelu_approximate(x):
-    return (
-        0.5
-        * x
-        * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
-    )
+    return 0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
 
 
 def gelu(x: torch.Tensor) -> torch.Tensor:
@@ -169,7 +161,7 @@ def get_activation_fn(activation: str) -> Callable:
     elif activation == "swish":
         return nn.SiLU
     else:
-        raise RuntimeError("--activation-fn {} not supported".format(activation))
+        raise RuntimeError(f"--activation-fn {activation} not supported")
 
 
 def pad_to_multiple(x, multiple, dim=-1, value=0):
@@ -209,9 +201,7 @@ class SamePad(nn.Module):
 
 def rotate_half(x):
     x1, x2 = x[..., : x.shape[-1] // 2], x[..., x.shape[-1] // 2 :]
-    return torch.cat(
-        (-x2, x1), dim=x1.ndim - 1
-    )  # dim=-1 triggers a bug in earlier torch versions
+    return torch.cat((-x2, x1), dim=x1.ndim - 1)  # dim=-1 triggers a bug in earlier torch versions
 
 
 def apply_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
@@ -234,30 +224,17 @@ class HubertConfig:
             "has layer norms in every block (meant to use with normalize=True)"
         },
     )
-    encoder_layers: int = field(
-        default=12, metadata={"help": "num encoder layers in the transformer"}
-    )
-    encoder_embed_dim: int = field(
-        default=768, metadata={"help": "encoder embedding dimension"}
-    )
-    encoder_ffn_embed_dim: int = field(
-        default=3072, metadata={"help": "encoder embedding dimension for FFN"}
-    )
-    encoder_attention_heads: int = field(
-        default=12, metadata={"help": "num encoder attention heads"}
-    )
-    activation_fn: AVAILABLE_ACT_FNS = field(
-        default="gelu", metadata={"help": "activation function to use"}
-    )
-    layer_type: LAYER_TYPE_CHOICES = field(
-        default="transformer", metadata={"help": "layer type in encoder"}
-    )
+    encoder_layers: int = field(default=12, metadata={"help": "num encoder layers in the transformer"})
+    encoder_embed_dim: int = field(default=768, metadata={"help": "encoder embedding dimension"})
+    encoder_ffn_embed_dim: int = field(default=3072, metadata={"help": "encoder embedding dimension for FFN"})
+    encoder_attention_heads: int = field(default=12, metadata={"help": "num encoder attention heads"})
+    activation_fn: AVAILABLE_ACT_FNS = field(default="gelu", metadata={"help": "activation function to use"})
+    layer_type: LAYER_TYPE_CHOICES = field(default="transformer", metadata={"help": "layer type in encoder"})
 
     final_dim: int = field(
         default=0,
         metadata={
-            "help": "project final representations and targets to this many "
-            "dimensions. set to encoder_embed_dim is <= 0"
+            "help": "project final representations and targets to this many dimensions. set to encoder_embed_dim is <= 0"
         },
     )
     untie_final_proj: bool = field(
@@ -276,15 +253,9 @@ class HubertConfig:
             "[(dim, kernel_size, stride), ...]"
         },
     )
-    conv_bias: bool = field(
-        default=False, metadata={"help": "include bias in conv encoder"}
-    )
-    logit_temp: float = field(
-        default=0.1, metadata={"help": "temperature to divide logits by"}
-    )
-    target_glu: bool = field(
-        default=False, metadata={"help": "adds projection + glu to targets"}
-    )
+    conv_bias: bool = field(default=False, metadata={"help": "include bias in conv encoder"})
+    logit_temp: float = field(default=0.1, metadata={"help": "temperature to divide logits by"})
+    target_glu: bool = field(default=False, metadata={"help": "adds projection + glu to targets"})
     feature_grad_mult: float = field(
         default=1.0,
         metadata={"help": "multiply feature extractor var grads by this"},
@@ -296,20 +267,12 @@ class HubertConfig:
         default=0.65,
         metadata={"help": "probability of replacing a token with mask"},
     )
-    mask_selection: MASKING_DISTRIBUTION_CHOICES = field(
-        default="static", metadata={"help": "how to choose mask length"}
-    )
+    mask_selection: MASKING_DISTRIBUTION_CHOICES = field(default="static", metadata={"help": "how to choose mask length"})
     mask_other: float = field(
         default=0,
-        metadata={
-            "help": "secondary mask argument "
-            "(used for more complex distributions), "
-            "see help in compute_mask_indicesh"
-        },
+        metadata={"help": "secondary mask argument (used for more complex distributions), see help in compute_mask_indicesh"},
     )
-    no_mask_overlap: bool = field(
-        default=False, metadata={"help": "whether to allow masks to overlap"}
-    )
+    no_mask_overlap: bool = field(default=False, metadata={"help": "whether to allow masks to overlap"})
     mask_min_space: int = field(
         default=1,
         metadata={"help": "min space between spans (if no overlap is enabled)"},
@@ -330,11 +293,7 @@ class HubertConfig:
     )
     mask_channel_other: float = field(
         default=0,
-        metadata={
-            "help": "secondary mask argument "
-            "(used for more complex distributions), "
-            "see help in compute_mask_indicesh"
-        },
+        metadata={"help": "secondary mask argument (used for more complex distributions), see help in compute_mask_indicesh"},
     )
     no_mask_channel_overlap: bool = field(
         default=False,
@@ -356,9 +315,7 @@ class HubertConfig:
     )
     conv_pos_batch_norm: bool = field(
         default=False,
-        metadata={
-            "help": "use batch norm instead of weight norm in conv_pos (for bf16 models)"
-        },
+        metadata={"help": "use batch norm instead of weight norm in conv_pos (for bf16 models)"},
     )
 
     latent_temp: tuple[float, float, float] = field(
@@ -384,17 +341,13 @@ class HubertConfig:
     # FP16 optimization
     required_seq_len_multiple: int = field(
         default=2,
-        metadata={
-            "help": "pad the input to encoder such that the sequence length is divisible by multiple"
-        },
+        metadata={"help": "pad the input to encoder such that the sequence length is divisible by multiple"},
     )
 
     # Conformer
     depthwise_conv_kernel_size: int = field(
         default=31,
-        metadata={
-            "help": "depthwise-conv-kernel-size for convolution in conformer layer"
-        },
+        metadata={"help": "depthwise-conv-kernel-size for convolution in conformer layer"},
     )
     attn_type: str = field(
         default="",
@@ -417,35 +370,18 @@ class Wav2Vec2Config:
             "every block (meant to use with normalize=True)"
         },
     )
-    encoder_layers: int = field(
-        default=12, metadata={"help": "num encoder layers in the transformer"}
-    )
-    encoder_embed_dim: int = field(
-        default=768, metadata={"help": "encoder embedding dimension"}
-    )
-    encoder_ffn_embed_dim: int = field(
-        default=3072, metadata={"help": "encoder embedding dimension for FFN"}
-    )
-    encoder_attention_heads: int = field(
-        default=12, metadata={"help": "num encoder attention heads"}
-    )
-    activation_fn: AVAILABLE_ACT_FNS = field(
-        default="gelu", metadata={"help": "activation function to use"}
-    )
-    layer_type: LAYER_TYPE_CHOICES = field(
-        default="transformer", metadata={"help": "layer type in encoder"}
-    )
+    encoder_layers: int = field(default=12, metadata={"help": "num encoder layers in the transformer"})
+    encoder_embed_dim: int = field(default=768, metadata={"help": "encoder embedding dimension"})
+    encoder_ffn_embed_dim: int = field(default=3072, metadata={"help": "encoder embedding dimension for FFN"})
+    encoder_attention_heads: int = field(default=12, metadata={"help": "num encoder attention heads"})
+    activation_fn: AVAILABLE_ACT_FNS = field(default="gelu", metadata={"help": "activation function to use"})
+    layer_type: LAYER_TYPE_CHOICES = field(default="transformer", metadata={"help": "layer type in encoder"})
 
     final_dim: int = field(
         default=0,
-        metadata={
-            "help": "project final representations and targets to this many dimensions."
-            "set to encoder_embed_dim is <= 0"
-        },
+        metadata={"help": "project final representations and targets to this many dimensions.set to encoder_embed_dim is <= 0"},
     )
-    layer_norm_first: bool = field(
-        default=False, metadata={"help": "apply layernorm first in the transformer"}
-    )
+    layer_norm_first: bool = field(default=False, metadata={"help": "apply layernorm first in the transformer"})
     conv_feature_layers: str = field(
         default="[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] + [(512,2,2)]",
         metadata={
@@ -453,18 +389,10 @@ class Wav2Vec2Config:
             "[(dim, kernel_size, stride), ...]"
         },
     )
-    conv_bias: bool = field(
-        default=False, metadata={"help": "include bias in conv encoder"}
-    )
-    logit_temp: float = field(
-        default=0.1, metadata={"help": "temperature to divide logits by"}
-    )
-    target_glu: bool = field(
-        default=False, metadata={"help": "adds projection + glu to targets"}
-    )
-    feature_grad_mult: float = field(
-        default=1.0, metadata={"help": "multiply feature extractor var grads by this"}
-    )
+    conv_bias: bool = field(default=False, metadata={"help": "include bias in conv encoder"})
+    logit_temp: float = field(default=0.1, metadata={"help": "temperature to divide logits by"})
+    target_glu: bool = field(default=False, metadata={"help": "adds projection + glu to targets"})
+    feature_grad_mult: float = field(default=1.0, metadata={"help": "multiply feature extractor var grads by this"})
     latent_vars: int = field(
         default=320,
         metadata={"help": "number of latent variables V in each group of the codebook"},
@@ -475,40 +403,25 @@ class Wav2Vec2Config:
     )
     latent_dim: int = field(
         default=0,
-        metadata={
-            "help": "if > 0, uses this dimensionality for latent variables. "
-            "otherwise uses final_dim / latent_groups"
-        },
+        metadata={"help": "if > 0, uses this dimensionality for latent variables. otherwise uses final_dim / latent_groups"},
     )
 
     # masking
     mask_length: int = field(default=10, metadata={"help": "mask length"})
-    mask_prob: float = field(
-        default=0.65, metadata={"help": "probability of replacing a token with mask"}
-    )
-    mask_selection: MASKING_DISTRIBUTION_CHOICES = field(
-        default="static", metadata={"help": "how to choose mask length"}
-    )
+    mask_prob: float = field(default=0.65, metadata={"help": "probability of replacing a token with mask"})
+    mask_selection: MASKING_DISTRIBUTION_CHOICES = field(default="static", metadata={"help": "how to choose mask length"})
     mask_other: float = field(
         default=0,
-        metadata={
-            "help": "secondary mask argument (used for more complex distributions), "
-            "see help in compute_mask_indices"
-        },
+        metadata={"help": "secondary mask argument (used for more complex distributions), see help in compute_mask_indices"},
     )
-    no_mask_overlap: bool = field(
-        default=False, metadata={"help": "whether to allow masks to overlap"}
-    )
+    no_mask_overlap: bool = field(default=False, metadata={"help": "whether to allow masks to overlap"})
     mask_min_space: int = field(
         default=1,
         metadata={"help": "min space between spans (if no overlap is enabled)"},
     )
     require_same_masks: bool = field(
         default=True,
-        metadata={
-            "help": "whether to number of masked timesteps must be the same across all "
-            "examples in a batch"
-        },
+        metadata={"help": "whether to number of masked timesteps must be the same across all examples in a batch"},
     )
     mask_dropout: float = field(
         default=0.0,
@@ -516,12 +429,8 @@ class Wav2Vec2Config:
     )
 
     # channel masking
-    mask_channel_length: int = field(
-        default=10, metadata={"help": "length of the mask for features (channels)"}
-    )
-    mask_channel_prob: float = field(
-        default=0.0, metadata={"help": "probability of replacing a feature with 0"}
-    )
+    mask_channel_length: int = field(default=10, metadata={"help": "length of the mask for features (channels)"})
+    mask_channel_prob: float = field(default=0.0, metadata={"help": "probability of replacing a feature with 0"})
     mask_channel_before: bool = False
     mask_channel_selection: MASKING_DISTRIBUTION_CHOICES = field(
         default="static",
@@ -529,14 +438,9 @@ class Wav2Vec2Config:
     )
     mask_channel_other: float = field(
         default=0,
-        metadata={
-            "help": "secondary mask argument (used for more complex distributions), "
-            "see help in compute_mask_indicesh"
-        },
+        metadata={"help": "secondary mask argument (used for more complex distributions), see help in compute_mask_indicesh"},
     )
-    no_mask_channel_overlap: bool = field(
-        default=False, metadata={"help": "whether to allow channel masks to overlap"}
-    )
+    no_mask_channel_overlap: bool = field(default=False, metadata={"help": "whether to allow channel masks to overlap"})
     mask_channel_min_space: int = field(
         default=1,
         metadata={"help": "min space between spans (if no overlap is enabled)"},
@@ -551,12 +455,8 @@ class Wav2Vec2Config:
         default=False,
         metadata={"help": "sample negatives from everywhere, not just masked states"},
     )
-    cross_sample_negatives: int = field(
-        default=0, metadata={"help": "number of negative examples from the any sample"}
-    )
-    codebook_negatives: int = field(
-        default=0, metadata={"help": "number of negative examples codebook"}
-    )
+    cross_sample_negatives: int = field(default=0, metadata={"help": "number of negative examples from the any sample"})
+    codebook_negatives: int = field(default=0, metadata={"help": "number of negative examples codebook"})
 
     # positional embeddings
     conv_pos: int = field(
@@ -574,10 +474,7 @@ class Wav2Vec2Config:
 
     latent_temp: tuple[float, float, float] = field(
         default=(2, 0.5, 0.999995),
-        metadata={
-            "help": "temperature for latent variable sampling. "
-            "can be tuple of 3 values (start, end, decay)"
-        },
+        metadata={"help": "temperature for latent variable sampling. can be tuple of 3 values (start, end, decay)"},
     )
     max_positions: int = field(default=100000, metadata={"help": "Max positions"})
     checkpoint_activations: bool = field(
@@ -588,23 +485,17 @@ class Wav2Vec2Config:
     # FP16 optimization
     required_seq_len_multiple: int = field(
         default=2,
-        metadata={
-            "help": "pad the input to encoder such that the sequence length is divisible by multiple"
-        },
+        metadata={"help": "pad the input to encoder such that the sequence length is divisible by multiple"},
     )
     crop_seq_to_multiple: int = field(
         default=1,
-        metadata={
-            "help": "crop convolutional feature extractor output such that the sequence length is divisible by multiple"
-        },
+        metadata={"help": "crop convolutional feature extractor output such that the sequence length is divisible by multiple"},
     )
 
     # Conformer
     depthwise_conv_kernel_size: int = field(
         default=31,
-        metadata={
-            "help": "depthwise-conv-kernel-size for convolution in conformer layer"
-        },
+        metadata={"help": "depthwise-conv-kernel-size for convolution in conformer layer"},
     )
     attn_type: str = field(
         default="",
@@ -659,7 +550,7 @@ class ESPNETMultiHeadedAttention(nn.Module):
 
     def __init__(self, n_feat, n_head):
         """Construct an MultiHeadedAttention object."""
-        super(ESPNETMultiHeadedAttention, self).__init__()
+        super().__init__()
         assert n_feat % n_head == 0
         # We assume d_v always equals d_k
         self.d_k = n_feat // n_head
@@ -710,9 +601,7 @@ class ESPNETMultiHeadedAttention(nn.Module):
         else:
             p_attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
         x = torch.matmul(p_attn, value)  # (batch, head, time1, d_k)
-        x = (
-            x.transpose(1, 2).contiguous().view(n_batch, -1, self.h * self.d_k)
-        )  # (batch, time1, d_model)
+        x = x.transpose(1, 2).contiguous().view(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
 
         return self.linear_out(x)  # (batch, time1, d_model)
 
@@ -770,9 +659,7 @@ class RelPositionMultiHeadedAttention(ESPNETMultiHeadedAttention):
         x_padded = torch.cat([zero_pad, x], dim=-1)
 
         x_padded = x_padded.view(*x.size()[:2], x.size(3) + 1, x.size(2))
-        x = x_padded[:, :, 1:].view_as(x)[
-            :, :, :, : x.size(-1) // 2 + 1
-        ]  # only keep the positions from 0 to time2
+        x = x_padded[:, :, 1:].view_as(x)[:, :, :, : x.size(-1) // 2 + 1]  # only keep the positions from 0 to time2
 
         if self.zero_triu:
             ones = torch.ones((x.size(2), x.size(3)), device=x.device)
@@ -817,9 +704,7 @@ class RelPositionMultiHeadedAttention(ESPNETMultiHeadedAttention):
         matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
         matrix_bd = self.rel_shift(matrix_bd)
 
-        scores = (matrix_ac + matrix_bd) / math.sqrt(
-            self.d_k
-        )  # (batch, head, time1, time2)
+        scores = (matrix_ac + matrix_bd) / math.sqrt(self.d_k)  # (batch, head, time1, time2)
 
         scores = self.forward_attention(v, scores, key_padding_mask)
         scores = scores.transpose(0, 1)
@@ -841,9 +726,7 @@ class RotaryPositionMultiHeadedAttention(ESPNETMultiHeadedAttention):
         if precision == "fp16":
             precision = torch.half
 
-        self.rotary_emb = RotaryPositionalEmbedding(
-            self.rotary_ndims, base=rotary_emd_base, precision=precision
-        )
+        self.rotary_emb = RotaryPositionalEmbedding(self.rotary_ndims, base=rotary_emd_base, precision=precision)
 
     def forward(self, query, key, value, key_padding_mask=None, **kwargs):
         """Compute rotary position attention.
@@ -863,9 +746,7 @@ class RotaryPositionMultiHeadedAttention(ESPNETMultiHeadedAttention):
         key = key.view(T, B, self.h, self.d_k)
         value = value.view(T, B, self.h, self.d_k)
         cos, sin = self.rotary_emb(value, seq_len=T)
-        query, key = apply_rotary_pos_emb(
-            query, key, cos, sin, offset=0
-        )  # offset is based on layer_past
+        query, key = apply_rotary_pos_emb(query, key, cos, sin, offset=0)  # offset is based on layer_past
 
         query = query.view(T, B, self.h * self.d_k)
         key = key.view(T, B, self.h * self.d_k)
@@ -922,7 +803,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        self_attn_padding_mask: Optional[torch.Tensor] = None,
+        self_attn_padding_mask: torch.Tensor | None = None,
     ):
         """
         LayerNorm is applied either before or after the self-attention/ffn
@@ -945,8 +826,6 @@ class TransformerSentenceEncoderLayer(nn.Module):
             x = self.activation_fn(self.fc1(x))
             x = self.fc2(x)
 
-            layer_result = x
-
             x = residual + x
         else:
             x = self.self_attn(
@@ -963,8 +842,6 @@ class TransformerSentenceEncoderLayer(nn.Module):
             residual = x
             x = self.activation_fn(self.fc1(x))
             x = self.fc2(x)
-
-            layer_result = x
 
             x = residual + x
             x = self.final_layer_norm(x)
@@ -997,9 +874,7 @@ class ConvFeatureExtractionModel(nn.Module):
                 nn.init.kaiming_normal_(conv.weight)
                 return conv
 
-            assert not (is_layer_norm and is_group_norm), (
-                "layer norm and group norm are exclusive"
-            )
+            assert not (is_layer_norm and is_group_norm), "layer norm and group norm are exclusive"
 
             if is_layer_norm:
                 return nn.Sequential(
@@ -1069,7 +944,7 @@ class FeedForwardModule(nn.Module):
             bias: If linear layers should have bias
         """
 
-        super(FeedForwardModule, self).__init__()
+        super().__init__()
         self.layer_norm = nn.LayerNorm(input_feat)
         self.w_1 = nn.Linear(input_feat, hidden_units, bias=bias)
         self.w_2 = nn.Linear(hidden_units, input_feat, bias=bias)
@@ -1107,10 +982,8 @@ class ConvolutionModule(nn.Module):
             activation_fn: Activation function to use after depthwise convolution kernel
             bias: If bias should be added to conv layers
         """
-        super(ConvolutionModule, self).__init__()
-        assert (depthwise_kernel_size - 1) % 2 == 0, (
-            "kernel_size should be a odd number for 'SAME' padding"
-        )
+        super().__init__()
+        assert (depthwise_kernel_size - 1) % 2 == 0, "kernel_size should be a odd number for 'SAME' padding"
         self.layer_norm = nn.LayerNorm(embed_dim)
         self.pointwise_conv1 = nn.Conv1d(
             embed_dim,
@@ -1166,7 +1039,8 @@ class ConvolutionModule(nn.Module):
 
 
 class ConformerWav2Vec2EncoderLayer(nn.Module):
-    """Conformer block based on https://arxiv.org/abs/2005.08100. We currently don't support relative positional encoding in MHA"""
+    """Conformer block based on https://arxiv.org/abs/2005.08100.
+    We currently don't support relative positional encoding in MHA"""
 
     def __init__(
         self,
@@ -1205,9 +1079,7 @@ class ConformerWav2Vec2EncoderLayer(nn.Module):
                     attention_heads,
                 )
             elif self.pos_enc_type == "rope":
-                self.self_attn = RotaryPositionMultiHeadedAttention(
-                    embed_dim, attention_heads, precision=use_fp16
-                )
+                self.self_attn = RotaryPositionMultiHeadedAttention(embed_dim, attention_heads, precision=use_fp16)
             elif self.pos_enc_type == "abs":
                 self.self_attn = ESPNETMultiHeadedAttention(
                     embed_dim,
@@ -1239,7 +1111,7 @@ class ConformerWav2Vec2EncoderLayer(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        self_attn_padding_mask: Optional[torch.Tensor] = None,
+        self_attn_padding_mask: torch.Tensor | None = None,
         position_emb=None,
     ):
         """
@@ -1310,9 +1182,7 @@ class MultiheadAttention(nn.Module):
         self.num_heads = num_heads
 
         self.head_dim = embed_dim // num_heads
-        assert self.head_dim * num_heads == self.embed_dim, (
-            "embed_dim must be divisible by num_heads"
-        )
+        assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim**-0.5
 
         self.self_attention = self_attention
@@ -1326,8 +1196,8 @@ class MultiheadAttention(nn.Module):
 
     def _pad_masks(
         self,
-        key_padding_mask: Optional[Tensor],
-    ) -> Optional[Tensor]:
+        key_padding_mask: Tensor | None,
+    ) -> Tensor | None:
         if key_padding_mask is not None:
             shape = key_padding_mask.size()[:-1] + torch.Size([1])
             key_padding_mask = torch.cat(
@@ -1342,9 +1212,9 @@ class MultiheadAttention(nn.Module):
     def forward(
         self,
         query: Tensor,
-        key: Optional[Tensor],
-        value: Optional[Tensor],
-        key_padding_mask: Optional[Tensor] = None,
+        key: Tensor | None,
+        value: Tensor | None,
+        key_padding_mask: Tensor | None = None,
     ) -> Tensor:
         """Input shape: Time x Batch x Channel
 
@@ -1406,25 +1276,13 @@ class MultiheadAttention(nn.Module):
             v = self.v_proj(value)
         q *= self.scaling
 
-        q = (
-            q.contiguous()
-            .view(tgt_len, bsz * self.num_heads, self.head_dim)
-            .transpose(0, 1)
-        )
+        q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
         kv_bsz = bsz  # need default value for scripting
         if k is not None:
             kv_bsz = k.size(1)
-            k = (
-                k.contiguous()
-                .view(-1, kv_bsz * self.num_heads, self.head_dim)
-                .transpose(0, 1)
-            )
+            k = k.contiguous().view(-1, kv_bsz * self.num_heads, self.head_dim).transpose(0, 1)
         if v is not None:
-            v = (
-                v.contiguous()
-                .view(-1, kv_bsz * self.num_heads, self.head_dim)
-                .transpose(0, 1)
-            )
+            v = v.contiguous().view(-1, kv_bsz * self.num_heads, self.head_dim).transpose(0, 1)
 
         assert k is not None
         assert k.size(1) == src_len
@@ -1445,9 +1303,7 @@ class MultiheadAttention(nn.Module):
         if key_padding_mask is not None:
             # don't attend to padding symbols
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
-            attn_weights = attn_weights.view(
-                kv_bsz, -1, self.num_heads, tgt_len, src_len
-            )
+            attn_weights = attn_weights.view(kv_bsz, -1, self.num_heads, tgt_len, src_len)
             attn_weights = attn_weights.masked_fill(
                 key_padding_mask.unsqueeze(1).unsqueeze(2).unsqueeze(3).to(torch.bool),
                 float("-inf"),
@@ -1486,9 +1342,7 @@ class MultiheadAttention(nn.Module):
                 if k_bias in state_dict.keys():
                     dim = int(state_dict[k].shape[0] / 3)
                     items_to_add[prefix + "q_proj.bias"] = state_dict[k_bias][:dim]
-                    items_to_add[prefix + "k_proj.bias"] = state_dict[k_bias][
-                        dim : 2 * dim
-                    ]
+                    items_to_add[prefix + "k_proj.bias"] = state_dict[k_bias][dim : 2 * dim]
                     items_to_add[prefix + "v_proj.bias"] = state_dict[k_bias][2 * dim :]
 
                     keys_to_remove.append(prefix + "in_proj_bias")
@@ -1559,7 +1413,7 @@ class TransformerEncoder(nn.Module):
             num_layers = args["pos_conv_depth"]
             k = max(3, args["conv_pos"] // num_layers)
 
-            def make_conv_block(e, k, g, l):
+            def make_conv_block(e, k, g, n_layers):
                 return nn.Sequential(
                     *[
                         nn.Sequential(
@@ -1576,13 +1430,11 @@ class TransformerEncoder(nn.Module):
                             TransposeLast(),
                             nn.GELU(),
                         )
-                        for _ in range(l)
+                        for _ in range(n_layers)
                     ]
                 )
 
-            self.pos_conv = make_conv_block(
-                self.embedding_dim, k, args["conv_pos_groups"], num_layers
-            )
+            self.pos_conv = make_conv_block(self.embedding_dim, k, args["conv_pos_groups"], num_layers)
         else:
             self.pos_conv = make_conv_pos(
                 self.embedding_dim,
@@ -1593,12 +1445,7 @@ class TransformerEncoder(nn.Module):
 
         encoder_layers = args["encoder_layers"]
 
-        self.layers = nn.ModuleList(
-            [
-                self.build_encoder_layer(args, layer_idx=ii)
-                for ii in range(encoder_layers)
-            ]
-        )
+        self.layers = nn.ModuleList([self.build_encoder_layer(args, layer_idx=ii) for ii in range(encoder_layers)])
         self.layer_norm_first = args["layer_norm_first"]
         self.layer_norm = nn.LayerNorm(self.embedding_dim)
 
@@ -1618,13 +1465,9 @@ class TransformerEncoder(nn.Module):
             x = self.layer_norm(x)
 
         # pad to the sequence length dimension
-        x, pad_length = pad_to_multiple(
-            x, self.required_seq_len_multiple, dim=-2, value=0
-        )
+        x, pad_length = pad_to_multiple(x, self.required_seq_len_multiple, dim=-2, value=0)
 
-        padding_mask, _ = pad_to_multiple(
-            padding_mask, self.required_seq_len_multiple, dim=-1, value=True
-        )
+        padding_mask, _ = pad_to_multiple(padding_mask, self.required_seq_len_multiple, dim=-1, value=True)
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
@@ -1663,21 +1506,15 @@ class HubertModel(nn.Module):
         self.feat2tar_ratio = cfg["label_rate"] * feature_ds_rate / task_cfg.sample_rate
 
         self.post_extract_proj = (
-            nn.Linear(self.embed, cfg["encoder_embed_dim"])
-            if self.embed != cfg["encoder_embed_dim"]
-            else None
+            nn.Linear(self.embed, cfg["encoder_embed_dim"]) if self.embed != cfg["encoder_embed_dim"] else None
         )
 
         self.feature_grad_mult = cfg["feature_grad_mult"]
         self.logit_temp = cfg["logit_temp"]
 
-        final_dim = (
-            cfg["final_dim"] if cfg["final_dim"] > 0 else cfg["encoder_embed_dim"]
-        )
+        final_dim = cfg["final_dim"] if cfg["final_dim"] > 0 else cfg["encoder_embed_dim"]
 
-        self.mask_emb = Parameter(
-            torch.FloatTensor(cfg["encoder_embed_dim"]).uniform_()
-        )
+        self.mask_emb = Parameter(torch.FloatTensor(cfg["encoder_embed_dim"]).uniform_())
 
         self.encoder = TransformerEncoder(cfg)
         self.layer_norm = nn.LayerNorm(self.embed)

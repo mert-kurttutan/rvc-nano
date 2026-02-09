@@ -26,14 +26,12 @@ class VC:
 
         self.config = Config()
 
-    def get_vc(
-        self, rvc_path: str, rvc_cfg_path: str, hubert_path: str, hubert_cfg_path: str
-    ):
+    def get_vc(self, rvc_path: str, rvc_cfg_path: str, hubert_path: str, hubert_cfg_path: str):
         if not os.path.exists(hubert_path):
             raise FileNotFoundError("hubert_path not found.")
 
         rvc_state = load_file(rvc_path)
-        with open(rvc_cfg_path, "r") as f:
+        with open(rvc_cfg_path) as f:
             self.rvc_model_config = json.load(f)
         self.tgt_sr = self.rvc_model_config[-1]
         self.rvc_model_config = list(self.rvc_model_config)
@@ -52,9 +50,9 @@ class VC:
             # ("v2", 1): SynthesizerTrnMs768NSFsid,
             # ("v2", 0): SynthesizerTrnMs768NSFsid_nono,
         }
-        self.net_g = synthesizer_class.get(
-            (self.version, self.if_f0), SynthesizerTrnMsNSFsid
-        )(*self.rvc_model_config, is_half=self.config.is_half)
+        self.net_g = synthesizer_class.get((self.version, self.if_f0), SynthesizerTrnMsNSFsid)(
+            *self.rvc_model_config, is_half=self.config.is_half
+        )
 
         self.net_g.load_state_dict(rvc_state, strict=False)
         self.net_g.eval().to(self.config.device)
