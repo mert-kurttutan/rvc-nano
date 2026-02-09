@@ -7,9 +7,7 @@ from torch.nn import functional as F
 from torch.nn.utils.parametrizations import weight_norm
 
 from rvc.synthesizer import attentions, modules
-from rvc.synthesizer.commons import (
-    sequence_mask,
-)
+from rvc.synthesizer.commons import sequence_mask
 
 
 class TextEncoder(nn.Module):

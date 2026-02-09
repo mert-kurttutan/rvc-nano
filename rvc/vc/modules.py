@@ -5,8 +5,8 @@ from typing import Any
 import numpy as np
 from safetensors.torch import load_file
 
+from rvc.audio import load_audio
 from rvc.configs.config import Config
-from rvc.synthesizer.audio import load_audio
 from rvc.synthesizer.models import (
     SynthesizerTrnMsNSFsid,
     SynthesizerTrnMsNSFsid_nono,
@@ -18,7 +18,7 @@ from rvc.vc.utils import load_hubert
 class VC:
     def __init__(self):
         self.tgt_sr: int | None = None
-        self.net_g = None
+        self.synthesizer = None
         self.pipeline: Pipeline | None = None
         self.if_f0: int | None = None
         self.version: str | None = None
@@ -36,7 +36,6 @@ class VC:
         self.tgt_sr = self.rvc_model_config[-1]
         self.rvc_model_config = list(self.rvc_model_config)
         self.rvc_model_config[-3] = rvc_state["emb_g.weight"].shape[0]
-        print(f"RVC model config: {self.rvc_model_config}")
         self.if_f0 = 1
         self.version = "v1"
         if self.version == "v1":
@@ -48,11 +47,10 @@ class VC:
             1: SynthesizerTrnMsNSFsid,
             0: SynthesizerTrnMsNSFsid_nono,
         }
-        self.net_g = synthesizer_class.get((self.version, self.if_f0), SynthesizerTrnMsNSFsid)(*self.rvc_model_config)
-
-        self.net_g.load_state_dict(rvc_state, strict=False)
-        self.net_g.eval().to(self.config.device)
-        self.net_g = self.net_g.half() if self.config.is_half else self.net_g.float()
+        self.synthesizer = synthesizer_class[self.if_f0](*self.rvc_model_config)
+        self.synthesizer.load_state_dict(rvc_state, strict=False)
+        self.synthesizer.eval().to(self.config.device)
+        self.synthesizer = self.synthesizer.half() if self.config.is_half else self.synthesizer.float()
 
         self.pipeline = Pipeline(self.tgt_sr, self.config)
 
@@ -80,7 +78,7 @@ class VC:
 
         audio_opt = self.pipeline.pipeline(
             self.hubert_model,
-            self.net_g,
+            self.synthesizer,
             sid,
             audio,
             f0_up_key,

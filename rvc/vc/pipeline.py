@@ -115,8 +115,8 @@ class Pipeline:
 
     def vc(
         self,
-        model,
-        net_g,
+        hubert_model,
+        synthesizer,
         sid,
         audio0,
         pitch,
@@ -138,12 +138,12 @@ class Pipeline:
         feats = feats.view(1, -1)
         padding_mask = torch.BoolTensor(feats.shape).to(self.device).fill_(False)
         with torch.no_grad():
-            logits = model.extract_features(
+            logits = hubert_model.extract_features(
                 source=feats.to(self.device),
                 padding_mask=padding_mask,
                 output_layer=9 if version == "v1" else 12,
             )
-            feats = model.final_proj(logits) if version == "v1" else logits
+            feats = hubert_model.final_proj(logits) if version == "v1" else logits
         if protect < 0.5 and pitch is not None and pitchf is not None:
             feats0 = feats.clone()
         if index is not None and big_npy is not None and index_rate != 0:
@@ -181,17 +181,13 @@ class Pipeline:
         with torch.no_grad():
             hasp = pitch is not None and pitchf is not None
             arg = (feats, p_len, pitch, pitchf, sid) if hasp else (feats, p_len, sid)
-            audio1 = (net_g(*arg)[0, 0]).data.cpu().float().numpy()
-            del hasp, arg
-        del feats, p_len, padding_mask
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+            audio1 = (synthesizer(*arg)[0, 0]).data.cpu().float().numpy()
         return audio1
 
     def pipeline(
         self,
-        model,
-        net_g,
+        hubert_model,
+        synthesizer,
         sid,
         audio,
         f0_up_key,
@@ -261,8 +257,8 @@ class Pipeline:
             pitchf_slice = pitchf[:, s // self.window : (t + self.t_pad2) // self.window] if pitchf is not None else None
             audio_opt.append(
                 self.vc(
-                    model,
-                    net_g,
+                    hubert_model,
+                    synthesizer,
                     sid,
                     audio_pad[s : t + self.t_pad2 + self.window],
                     pitch_slice,
@@ -280,8 +276,8 @@ class Pipeline:
         pitchf_slice = pitchf[:, s // self.window : p_len] if pitchf is not None else None
         audio_opt.append(
             self.vc(
-                model,
-                net_g,
+                hubert_model,
+                synthesizer,
                 sid,
                 audio_pad[s:],
                 pitch_slice,
@@ -303,7 +299,4 @@ class Pipeline:
         if audio_max > 1:
             max_int16 /= audio_max
         audio_opt = (audio_opt * max_int16).astype(np.int16)
-        del pitch, pitchf, sid
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
         return audio_opt
