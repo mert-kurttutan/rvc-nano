@@ -253,14 +253,10 @@ class FFN(nn.Module):
         out_channels,
         filter_channels,
         kernel_size,
-        activation: str = None,
-        causal=False,
     ):
         super(FFN, self).__init__()
         self.in_channels = in_channels
         self.kernel_size = kernel_size
-        self.causal = causal
-        self.is_activation = True if activation == "gelu" else False
 
         self.conv_1 = nn.Conv1d(in_channels, filter_channels, kernel_size)
         self.conv_2 = nn.Conv1d(filter_channels, out_channels, kernel_size)
@@ -274,10 +270,7 @@ class FFN(nn.Module):
 
     def forward(self, x: torch.Tensor, x_mask: torch.Tensor):
         x = self.conv_1(self.padding(x, x_mask))
-        if self.is_activation:
-            x = x * torch.sigmoid(1.702 * x)
-        else:
-            x = torch.relu(x)
+        x = torch.relu(x)
 
         x = self.conv_2(self.padding(x, x_mask))
         return x * x_mask
