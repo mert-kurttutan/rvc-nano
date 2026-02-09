@@ -17,11 +17,8 @@ class Encoder(nn.Module):
         n_layers,
         kernel_size=1,
         window_size=10,
-        **kwargs,
     ):
         super(Encoder, self).__init__()
-        self.hidden_channels = hidden_channels
-        self.filter_channels = filter_channels
         self.n_heads = n_heads
         self.n_layers = int(n_layers)
         self.kernel_size = kernel_size
@@ -78,11 +75,8 @@ class MultiHeadAttention(nn.Module):
         super(MultiHeadAttention, self).__init__()
         assert channels % n_heads == 0
 
-        self.channels = channels
-        self.out_channels = out_channels
         self.n_heads = n_heads
         self.window_size = window_size
-        self.attn = None
 
         self.k_channels = channels // n_heads
         self.conv_q = nn.Conv1d(channels, channels, 1)
@@ -264,10 +258,7 @@ class FFN(nn.Module):
     ):
         super(FFN, self).__init__()
         self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.filter_channels = filter_channels
         self.kernel_size = kernel_size
-        self.activation = activation
         self.causal = causal
         self.is_activation = True if activation == "gelu" else False
 

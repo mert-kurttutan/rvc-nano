@@ -38,10 +38,7 @@ class WN(torch.nn.Module):
         super(WN, self).__init__()
         assert kernel_size % 2 == 1
         self.hidden_channels = hidden_channels
-        self.kernel_size = (kernel_size,)
-        self.dilation_rate = dilation_rate
         self.n_layers = n_layers
-        self.gin_channels = gin_channels
 
         self.in_layers = torch.nn.ModuleList()
         self.res_skip_layers = torch.nn.ModuleList()
@@ -261,11 +258,7 @@ class ResidualCouplingLayer(nn.Module):
     ):
         assert channels % 2 == 0, "channels should be divisible by 2"
         super(ResidualCouplingLayer, self).__init__()
-        self.channels = channels
         self.hidden_channels = hidden_channels
-        self.kernel_size = kernel_size
-        self.dilation_rate = dilation_rate
-        self.n_layers = n_layers
         self.half_channels = channels // 2
         self.mean_only = mean_only
 

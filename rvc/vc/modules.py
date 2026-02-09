@@ -38,6 +38,7 @@ class VC:
         self.tgt_sr = self.rvc_model_config[-1]
         self.rvc_model_config = list(self.rvc_model_config)
         self.rvc_model_config[-3] = rvc_state["emb_g.weight"].shape[0]
+        print(f"RVC model config: {self.rvc_model_config}")
         self.if_f0 = 1
         self.version = "v1"
         if self.version == "v1":

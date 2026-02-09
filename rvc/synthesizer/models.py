@@ -30,10 +30,6 @@ class TextEncoder(nn.Module):
         super(TextEncoder, self).__init__()
         self.out_channels = out_channels
         self.hidden_channels = hidden_channels
-        self.filter_channels = filter_channels
-        self.n_heads = n_heads
-        self.n_layers = n_layers
-        self.kernel_size = kernel_size
         self.emb_phone = nn.Linear(embedding_dims, hidden_channels)
         self.lrelu = nn.LeakyReLU(0.1, inplace=True)
         if f0:
@@ -77,13 +73,7 @@ class ResidualCouplingBlock(nn.Module):
         gin_channels=0,
     ):
         super(ResidualCouplingBlock, self).__init__()
-        self.channels = channels
         self.hidden_channels = hidden_channels
-        self.kernel_size = kernel_size
-        self.dilation_rate = dilation_rate
-        self.n_layers = n_layers
-        self.n_flows = n_flows
-        self.gin_channels = gin_channels
 
         self.flows = nn.ModuleList()
         for i in range(n_flows):
@@ -449,7 +439,6 @@ class SynthesizerTrnMsNSFsid(nn.Module):
         n_heads,
         n_layers,
         kernel_size,
-        _p,
         resblock,
         resblock_kernel_sizes,
         resblock_dilation_sizes,
@@ -461,26 +450,12 @@ class SynthesizerTrnMsNSFsid(nn.Module):
         sr,
         **kwargs,
     ):
+        print(f"using sid")
         super(SynthesizerTrnMsNSFsid, self).__init__()
         if isinstance(sr, str):
             sr = sr2sr[sr]
-        self.spec_channels = spec_channels
-        self.inter_channels = inter_channels
         self.hidden_channels = hidden_channels
-        self.filter_channels = filter_channels
-        self.n_heads = n_heads
-        self.n_layers = n_layers
-        self.kernel_size = kernel_size
         self.resblock = resblock
-        self.resblock_kernel_sizes = resblock_kernel_sizes
-        self.resblock_dilation_sizes = resblock_dilation_sizes
-        self.upsample_rates = upsample_rates
-        self.upsample_initial_channel = upsample_initial_channel
-        self.upsample_kernel_sizes = upsample_kernel_sizes
-        self.segment_size = segment_size
-        self.gin_channels = gin_channels
-        # self.hop_length = hop_length#
-        self.spk_embed_dim = spk_embed_dim
         self.enc_p = TextEncoder(
             embedding_dims,
             inter_channels,
@@ -505,7 +480,7 @@ class SynthesizerTrnMsNSFsid(nn.Module):
         self.flow = ResidualCouplingBlock(
             inter_channels, hidden_channels, 5, 1, 3, gin_channels=gin_channels
         )
-        self.emb_g = nn.Embedding(self.spk_embed_dim, gin_channels)
+        self.emb_g = nn.Embedding(spk_embed_dim, gin_channels)
 
     def forward(
         self,
@@ -547,23 +522,8 @@ class SynthesizerTrnMsNSFsid_nono(nn.Module):
         **kwargs,
     ):
         super(SynthesizerTrnMsNSFsid_nono, self).__init__()
-        self.spec_channels = spec_channels
-        self.inter_channels = inter_channels
         self.hidden_channels = hidden_channels
-        self.filter_channels = filter_channels
-        self.n_heads = n_heads
-        self.n_layers = n_layers
-        self.kernel_size = kernel_size
         self.resblock = resblock
-        self.resblock_kernel_sizes = resblock_kernel_sizes
-        self.resblock_dilation_sizes = resblock_dilation_sizes
-        self.upsample_rates = upsample_rates
-        self.upsample_initial_channel = upsample_initial_channel
-        self.upsample_kernel_sizes = upsample_kernel_sizes
-        self.segment_size = segment_size
-        self.gin_channels = gin_channels
-        # self.hop_length = hop_length#
-        self.spk_embed_dim = spk_embed_dim
         self.enc_p = TextEncoder(
             embedding_dims,
             inter_channels,
@@ -587,7 +547,7 @@ class SynthesizerTrnMsNSFsid_nono(nn.Module):
         self.flow = ResidualCouplingBlock(
             inter_channels, hidden_channels, 5, 1, 3, gin_channels=gin_channels
         )
-        self.emb_g = nn.Embedding(self.spk_embed_dim, gin_channels)
+        self.emb_g = nn.Embedding(spk_embed_dim, gin_channels)
 
     def forward(
         self,
