@@ -107,7 +107,7 @@ class MultiHeadAttention(nn.Module):
         k = self.conv_k(c)
         v = self.conv_v(c)
 
-        x, _ = self.attention(q, k, v, mask=attn_mask)
+        x = self.attention(q, k, v, mask=attn_mask)
 
         x = self.conv_o(x)
         return x
@@ -152,7 +152,7 @@ class MultiHeadAttention(nn.Module):
         output = (
             output.transpose(2, 3).contiguous().view(b, d, t_t)
         )  # [b, n_h, t_t, d_k] -> [b, d, t_t]
-        return output, p_attn
+        return output
 
     def _matmul_with_relative_values(self, x, y):
         """

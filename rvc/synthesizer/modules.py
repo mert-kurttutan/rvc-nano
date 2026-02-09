@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional
 
 import torch
 from torch import nn
@@ -236,13 +236,9 @@ class Flip(nn.Module):
         x_mask: torch.Tensor,
         g: Optional[torch.Tensor] = None,
         reverse: bool = False,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    ) -> torch.Tensor:
         x = torch.flip(x, [1])
-        if not reverse:
-            logdet = torch.zeros(x.size(0)).to(dtype=x.dtype, device=x.device)
-            return x, logdet
-        else:
-            return x, torch.zeros([1], device=x.device)
+        return x
 
 
 class ResidualCouplingLayer(nn.Module):
@@ -292,4 +288,4 @@ class ResidualCouplingLayer(nn.Module):
 
         x1 = (x1 - m) * torch.exp(-logs) * x_mask
         x = torch.cat([x0, x1], 1)
-        return x, torch.zeros([1])
+        return x
