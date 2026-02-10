@@ -348,33 +348,26 @@ class GeneratorNSF(nn.Module):
 
         self.lrelu_slope = modules.LRELU_SLOPE
 
+        assert len(self.resblocks) == self.num_kernels * self.num_upsamples, (
+            "num of resblocks should be num_kernels * num_upsamples"
+        )
+
     def forward(self, x, f0, g: torch.Tensor | None = None):
         har_source = self.m_source(f0, self.upp)
         har_source = har_source.transpose(1, 2)
         x = self.conv_pre(x)
         if g is not None:
             x = x + self.cond(g)
-        # torch.jit.script() does not support direct indexing of torch modules
-        # That's why I wrote this
         for i, (ups, noise_convs) in enumerate(zip(self.ups, self.noise_convs, strict=True)):
-            if i < self.num_upsamples:
-                x = F.leaky_relu(x, self.lrelu_slope)
-                x = ups(x)
-                x_source = noise_convs(har_source)
-                x = x + x_source
-                xs: torch.Tensor | None = None
-                lower_bound = max(i * self.num_kernels, 0)
-                upper_bound = min((i + 1) * self.num_kernels, len(self.resblocks) - 1)
-                for j in range(lower_bound, upper_bound):
-                    resblock = self.resblocks[j]
-                    if xs is None:
-                        xs = resblock(x)
-                    else:
-                        xs += resblock(x)
-                # This assertion cannot be ignored! \
-                # If ignored, it will cause torch.jit.script() compilation errors
-                assert isinstance(xs, torch.Tensor)
-                x = xs / self.num_kernels
+            x = F.leaky_relu(x, self.lrelu_slope)
+            x = ups(x)
+            x_source = noise_convs(har_source)
+            x = x + x_source
+            xs = self.resblocks[i * self.num_kernels](x)
+            for j in range(i * self.num_kernels + 1, (i + 1) * self.num_kernels):
+                resblock = self.resblocks[j]
+                xs += resblock(x)
+            x = xs / self.num_kernels
         x = F.leaky_relu(x)
         x = self.conv_post(x)
         x = torch.tanh(x)

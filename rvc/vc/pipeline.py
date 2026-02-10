@@ -1,4 +1,6 @@
+import json
 import os
+from typing import Any
 
 import librosa
 import numpy as np
@@ -6,7 +8,13 @@ import parselmouth
 import torch
 import torch.nn.functional as F
 import torchcrepe
+from safetensors.torch import load_file
 from scipy import signal
+
+from rvc.audio import load_audio
+from rvc.configs.config import Config
+from rvc.synthesizer.models import SynthesizerTrnMsNSFsid, SynthesizerTrnMsNSFsid_nono
+from rvc.vc.utils import load_hubert
 
 bh, ah = signal.butter(N=5, Wn=48, btype="high", fs=16000)
 
@@ -23,33 +31,89 @@ def change_rms(data1, sr1, data2, sr2, rate):
     return data2
 
 
+def _build_rvc_model_config(
+    rvc_state: dict[str, Any],
+    rvc_cfg_path: str,
+    version: str,
+) -> tuple[list[Any], int]:
+    with open(rvc_cfg_path) as f:
+        rvc_model_config = json.load(f)
+    tgt_sr = rvc_model_config[-1]
+    rvc_model_config = list(rvc_model_config)
+    rvc_model_config[-3] = rvc_state["emb_g.weight"].shape[0]
+    if version == "v1":
+        rvc_model_config.insert(0, 256)
+    elif version == "v2":
+        rvc_model_config.insert(0, 768)
+    else:
+        raise ValueError("version must be 'v1' or 'v2'.")
+    return rvc_model_config, tgt_sr
+
+
+def _load_rvc_model(
+    rvc_path: str,
+    rvc_cfg_path: str,
+    config: Config,
+    if_f0: int,
+    version: str,
+):
+    rvc_state = load_file(rvc_path)
+    rvc_model_config, tgt_sr = _build_rvc_model_config(rvc_state, rvc_cfg_path, version)
+
+    synthesizer_class = {
+        1: SynthesizerTrnMsNSFsid,
+        0: SynthesizerTrnMsNSFsid_nono,
+    }
+    synthesizer = synthesizer_class[if_f0](*rvc_model_config)
+    synthesizer.load_state_dict(rvc_state, strict=False)
+    synthesizer.eval().to(config.device)
+    synthesizer = synthesizer.half() if config.is_half else synthesizer.float()
+    return synthesizer, tgt_sr
+
+
 class Pipeline:
-    def __init__(self, tgt_sr, config):
-        self.x_pad, self.x_query, self.x_center, self.x_max, self.is_half = (
+    def __init__(
+        self,
+        rvc_path: str,
+        rvc_cfg_path: str,
+        hubert_path: str,
+        hubert_cfg_path: str,
+        if_f0: int = 1,
+        version: str = "v1",
+        config: Config | None = None,
+    ):
+        if not os.path.exists(hubert_path):
+            raise FileNotFoundError("hubert_path not found.")
+        if not os.path.exists(rvc_path):
+            raise FileNotFoundError("rvc_path not found.")
+
+        self.config = config or Config()
+        self.if_f0 = if_f0
+        self.version = version
+
+        self.synthesizer, self.tgt_sr = _load_rvc_model(rvc_path, rvc_cfg_path, self.config, self.if_f0, self.version)
+        self.hubert_model = load_hubert(self.config, hubert_path, hubert_cfg_path)
+        self._init_timing(self.tgt_sr, self.config)
+
+    def _init_timing(self, tgt_sr: int, config: Config) -> None:
+        x_pad, x_query, x_center, x_max, self.is_half = (
             config.x_pad,
             config.x_query,
             config.x_center,
             config.x_max,
             config.is_half,
         )
-        print(f"tgt_sr: {tgt_sr}")
         self.sr = 16000
         self.window = 160
-        self.t_pad = self.sr * self.x_pad
-        self.t_pad_tgt = tgt_sr * self.x_pad
+        self.t_pad = self.sr * x_pad
+        self.t_pad_tgt = tgt_sr * x_pad
         self.t_pad2 = self.t_pad * 2
-        self.t_query = self.sr * self.x_query
-        self.t_center = self.sr * self.x_center
-        self.t_max = self.sr * self.x_max
+        self.t_query = self.sr * x_query
+        self.t_center = self.sr * x_center
+        self.t_max = self.sr * x_max
         self.device = config.device
 
-    def get_f0(
-        self,
-        x,
-        p_len,
-        f0_up_key,
-        f0_method,
-    ):
+    def _get_f0(self, x, p_len, f0_up_key, f0_method):
         f0_min = 50
         f0_max = 1100
         f0_mel_min = 1127 * np.log(1 + f0_min / 700)
@@ -70,9 +134,7 @@ class Pipeline:
                 f0 = np.pad(f0, [[pad_size, p_len - len(f0) - pad_size]], mode="constant")
         elif f0_method == "crepe":
             model = "full"
-            # Pick a batch size that doesn't cause memory errors on your gpu
             batch_size = 512
-            # Compute pitch using first gpu
             audio = torch.tensor(np.copy(x))[None].float()
             f0, pd = torchcrepe.predict(
                 audio,
@@ -99,6 +161,8 @@ class Pipeline:
                     device=self.device,
                 )
             f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
+        else:
+            raise ValueError("f0_method must be 'pm', 'crepe', or 'rmvpe'.")
         f0 *= pow(2, f0_up_key / 12)
         f0bak = f0.copy()
         f0_mel = 1127 * np.log(1 + f0 / 700)
@@ -113,37 +177,31 @@ class Pipeline:
         f0bak = torch.tensor(f0bak, device=self.device).unsqueeze(0).float()
         return f0_coarse, f0bak
 
-    def vc(
+    def _vc(
         self,
-        hubert_model,
-        synthesizer,
-        sid,
-        audio0,
+        audio,
+        speaker_id,
         pitch,
         pitchf,
         index,
         big_npy,
         index_rate,
-        version,
         protect,
     ):
-        feats = torch.from_numpy(audio0)
-        if self.is_half:
-            feats = feats.half()
-        else:
-            feats = feats.float()
-        if feats.dim() == 2:  # double channels
+        feats = torch.from_numpy(audio)
+        feats = feats.half() if self.is_half else feats.float()
+        if feats.dim() == 2:
             feats = feats.mean(-1)
         assert feats.dim() == 1, feats.dim()
         feats = feats.view(1, -1)
         padding_mask = torch.BoolTensor(feats.shape).to(self.device).fill_(False)
         with torch.no_grad():
-            logits = hubert_model.extract_features(
+            logits = self.hubert_model.extract_features(
                 source=feats.to(self.device),
                 padding_mask=padding_mask,
-                output_layer=9 if version == "v1" else 12,
+                output_layer=9 if self.version == "v1" else 12,
             )
-            feats = hubert_model.final_proj(logits) if version == "v1" else logits
+            feats = self.hubert_model.final_proj(logits) if self.version == "v1" else logits
         if protect < 0.5 and pitch is not None and pitchf is not None:
             feats0 = feats.clone()
         if index is not None and big_npy is not None and index_rate != 0:
@@ -163,7 +221,7 @@ class Pipeline:
         feats = F.interpolate(feats.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
         if protect < 0.5 and pitch is not None and pitchf is not None:
             feats0 = F.interpolate(feats0.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
-        p_len = audio0.shape[0] // self.window
+        p_len = audio.shape[0] // self.window
         if feats.shape[1] < p_len:
             p_len = feats.shape[1]
             if pitch is not None and pitchf is not None:
@@ -180,25 +238,20 @@ class Pipeline:
             feats = feats.to(feats0.dtype)
         with torch.no_grad():
             hasp = pitch is not None and pitchf is not None
-            arg = (feats, p_len, pitch, pitchf, sid) if hasp else (feats, p_len, sid)
-            audio1 = (synthesizer(*arg)[0, 0]).data.cpu().float().numpy()
-        return audio1
+            arg = (feats, p_len, pitch, pitchf, speaker_id) if hasp else (feats, p_len, speaker_id)
+            output = (self.synthesizer(*arg)[0, 0]).data.cpu().float().numpy()
+        return output
 
-    def pipeline(
+    def _run_pipeline(
         self,
-        hubert_model,
-        synthesizer,
-        sid,
         audio,
+        speaker_id,
         f0_up_key,
         f0_method,
         file_index,
         index_rate,
-        if_f0,
-        tgt_sr,
         resample_sr,
         rms_mix_rate,
-        version,
         protect,
     ):
         # if (
@@ -221,11 +274,9 @@ class Pipeline:
         audio = signal.filtfilt(bh, ah, audio)
         audio_pad = np.pad(audio, (self.window // 2, self.window // 2), mode="reflect")
         opt_ts = []
-        print(f"t_max: {self.t_max}, audio_pad.shape[0]: {audio_pad.shape[0]}")
         if audio_pad.shape[0] > self.t_max:
             audio_sum = np.zeros_like(audio)
             for i in range(self.window):
-                print(f"audio_sum: {i}/{self.window}")
                 audio_sum += np.abs(audio_pad[i : i - self.window])
             for t in range(self.t_center, audio.shape[0], self.t_center):
                 opt_ts.append(
@@ -235,68 +286,82 @@ class Pipeline:
                         audio_sum[t - self.t_query : t + self.t_query] == audio_sum[t - self.t_query : t + self.t_query].min()
                     )[0][0]
                 )
-        s = 0
-        audio_opt = []
-        t = None
+
+        audio_output = []
         audio_pad = np.pad(audio, (self.t_pad, self.t_pad), mode="reflect")
         p_len = audio_pad.shape[0] // self.window
-        sid = torch.tensor(sid, device=self.device).unsqueeze(0).long()
+        s = 0
+        idx_list = []
+        for t in opt_ts:
+            idx_list.append((s // self.window, (t + self.t_pad2) // self.window))
+            s = t
+        idx_list.append((s // self.window, p_len))
+        speaker_id = torch.tensor(speaker_id, device=self.device).unsqueeze(0).long()
         pitch, pitchf = None, None
-        if if_f0 == 1:
-            pitch, pitchf = self.get_f0(
+        if self.if_f0 == 1:
+            pitch, pitchf = self._get_f0(
                 audio_pad,
                 p_len,
                 f0_up_key,
                 f0_method,
             )
-        else:
-            pitch, pitchf = None, None
-        for t in opt_ts:
-            t = t // self.window * self.window
-            pitch_slice = pitch[:, s // self.window : (t + self.t_pad2) // self.window] if pitch is not None else None
-            pitchf_slice = pitchf[:, s // self.window : (t + self.t_pad2) // self.window] if pitchf is not None else None
-            audio_opt.append(
-                self.vc(
-                    hubert_model,
-                    synthesizer,
-                    sid,
-                    audio_pad[s : t + self.t_pad2 + self.window],
+        for idx_s, idx_e in idx_list:
+            pitch_slice = pitch[:, idx_s:idx_e] if pitch is not None else None
+            pitchf_slice = pitchf[:, idx_s:idx_e] if pitchf is not None else None
+            audio_output.append(
+                self._vc(
+                    audio_pad[idx_s * self.window : (idx_e + self.t_pad2 // self.window) * self.window],
+                    speaker_id,
                     pitch_slice,
                     pitchf_slice,
                     index,
                     big_npy,
                     index_rate,
-                    version,
                     protect,
                 )[self.t_pad_tgt : -self.t_pad_tgt]
             )
-            s = t
-
-        pitch_slice = pitch[:, s // self.window : p_len] if pitch is not None else None
-        pitchf_slice = pitchf[:, s // self.window : p_len] if pitchf is not None else None
-        audio_opt.append(
-            self.vc(
-                hubert_model,
-                synthesizer,
-                sid,
-                audio_pad[s:],
-                pitch_slice,
-                pitchf_slice,
-                index,
-                big_npy,
-                index_rate,
-                version,
-                protect,
-            )[self.t_pad_tgt : -self.t_pad_tgt]
-        )
-        audio_opt = np.concatenate(audio_opt)
+        audio_output = np.concatenate(audio_output)
         if rms_mix_rate != 1:
-            audio_opt = change_rms(audio, 16000, audio_opt, tgt_sr, rms_mix_rate)
-        if tgt_sr != resample_sr >= 16000:
-            audio_opt = librosa.resample(audio_opt, orig_sr=tgt_sr, target_sr=resample_sr)
-        audio_max = np.abs(audio_opt).max() / 0.99
+            audio_output = change_rms(audio, 16000, audio_output, self.tgt_sr, rms_mix_rate)
+        if self.tgt_sr != resample_sr and resample_sr >= 16000:
+            audio_output = librosa.resample(audio_output, orig_sr=self.tgt_sr, target_sr=resample_sr)
+        audio_max = np.abs(audio_output).max() / 0.99
         max_int16 = 32768
         if audio_max > 1:
             max_int16 /= audio_max
-        audio_opt = (audio_opt * max_int16).astype(np.int16)
-        return audio_opt
+        audio_output = (audio_output * max_int16).astype(np.int16)
+        return audio_output
+
+    def infer(
+        self,
+        audio_path: str,
+        speaker_id: int,
+        f0_up_key: int = 0,
+        f0_method: str = "pm",
+        index_file: str | None = None,
+        index_rate: float = 0.75,
+        resample_sr: int = 0,
+        rms_mix_rate: float = 0.25,
+        protect: float = 0.33,
+    ):
+        if not os.path.exists(audio_path):
+            raise FileNotFoundError("input_audio_path not found.")
+
+        audio = load_audio(audio_path, 16000)
+        audio_max = np.abs(audio).max() / 0.95
+        if audio_max > 1:
+            audio /= audio_max
+
+        result = self._run_pipeline(
+            audio,
+            speaker_id,
+            f0_up_key,
+            f0_method,
+            index_file,
+            index_rate,
+            resample_sr,
+            rms_mix_rate,
+            protect,
+        )
+
+        return result

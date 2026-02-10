@@ -22,45 +22,47 @@ def _get_input_path(tmp_path: Path) -> Path:
     return wav_path
 
 
-def test_vc_inference_shapes(tmp_path: Path) -> None:
+def test_pipeline_inference_shapes(tmp_path: Path) -> None:
     load_dotenv()
 
-    from rvc.vc.modules import VC
+    from rvc.vc.pipeline import Pipeline
 
     input_path = _get_input_path(tmp_path)
 
-    # Provide hubert_path if assets exist; otherwise skip with a clear message.
-    hubert_path = "assets/hubert_base.pt"
+    rvc_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/rvc_model.safetensors"
+    hubert_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/hubert_model.safetensors"
+    hubert_cfg_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/hubert_cfg.json"
+    rvc_cfg_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/rvc_model_config.json"
 
-    # Provide rmvpe_root for f0 extraction.
+    if not Path(rvc_path).exists():
+        pytest.skip("rvc_model.safetensors not found under assets/.")
+    if not Path(hubert_path).exists():
+        pytest.skip("hubert_model.safetensors not found under assets/.")
+
     rmvpe_root = Path("assets/rmvpe")
     if rmvpe_root.exists():
         os.environ.setdefault("rmvpe_root", str(rmvpe_root))
-    else:
-        pytest.skip("rmvpe_root not found under assets/. Set rmvpe_root env.")
 
-    vc = VC()
-    rvc_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/rvc_model.safetensors"
-    hubert_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/hubert_model.safetensors"
+    pipe = Pipeline(
+        rvc_path=rvc_path,
+        rvc_cfg_path=rvc_cfg_path,
+        hubert_path=hubert_path,
+        hubert_cfg_path=hubert_cfg_path,
+    )
 
-    hubert_cfg_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/hubert_cfg.json"
-    rvc_cfg_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/rvc_model_config.json"
-    vc.get_vc(rvc_path, rvc_cfg_path, hubert_path, hubert_cfg_path)
-    tgt_sr, audio_opt = vc.vc_inference(0, str(input_path))
+    audio_opt = pipe.infer(str(input_path), 0)
 
-    assert tgt_sr > 0
     assert audio_opt is not None
     assert audio_opt.ndim in (1, 2)
     assert audio_opt.shape[0] > 0
-
     output_dir = Path(__file__).resolve().parent.parent / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "output.wav"
-    sf.write(output_path, np.asarray(audio_opt), tgt_sr)
+    sf.write(output_path, np.asarray(audio_opt), pipe.tgt_sr)
 
 
 if __name__ == "__main__":
     import tempfile
     from pathlib import Path
 
-    test_vc_inference_shapes(Path(tempfile.mkdtemp()))
+    test_pipeline_inference_shapes(Path(tempfile.mkdtemp()))
