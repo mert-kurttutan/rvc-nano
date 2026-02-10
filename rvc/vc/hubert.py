@@ -1192,7 +1192,6 @@ class MultiheadAttention(nn.Module):
         self.q_proj = nn.Linear(embed_dim, embed_dim, bias=True)
 
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=True)
-        self.beam_size = 1
 
     def _pad_masks(
         self,
@@ -1320,38 +1319,6 @@ class MultiheadAttention(nn.Module):
         attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, self.embed_dim)
         attn = self.out_proj(attn)
         return attn
-
-    def set_beam_size(self, beam_size):
-        """Used for effiecient beamable enc-dec attention"""
-        self.beam_size = beam_size
-
-    def upgrade_state_dict_named(self, state_dict, name):
-        prefix = name + "." if name != "" else ""
-        items_to_add = {}
-        keys_to_remove = []
-        for k in state_dict.keys():
-            if k.endswith(prefix + "in_proj_weight"):
-                dim = int(state_dict[k].shape[0] / 3)
-                items_to_add[prefix + "q_proj.weight"] = state_dict[k][:dim]
-                items_to_add[prefix + "k_proj.weight"] = state_dict[k][dim : 2 * dim]
-                items_to_add[prefix + "v_proj.weight"] = state_dict[k][2 * dim :]
-
-                keys_to_remove.append(k)
-
-                k_bias = prefix + "in_proj_bias"
-                if k_bias in state_dict.keys():
-                    dim = int(state_dict[k].shape[0] / 3)
-                    items_to_add[prefix + "q_proj.bias"] = state_dict[k_bias][:dim]
-                    items_to_add[prefix + "k_proj.bias"] = state_dict[k_bias][dim : 2 * dim]
-                    items_to_add[prefix + "v_proj.bias"] = state_dict[k_bias][2 * dim :]
-
-                    keys_to_remove.append(prefix + "in_proj_bias")
-
-        for k in keys_to_remove:
-            del state_dict[k]
-
-        for key, value in items_to_add.items():
-            state_dict[key] = value
 
 
 def make_conv_pos(e, k, g, is_batch_norm=False):
@@ -1561,11 +1528,8 @@ class HubertModel(nn.Module):
         """output layer is 1-based"""
         features = self.feature_extractor(source)
 
-        # features_pen = features.float().pow(2).mean()
-
         features = features.transpose(1, 2)
         features = self.layer_norm(features)
-        # unmasked_features = features.clone()
 
         if padding_mask is not None:
             padding_mask = self.forward_padding_mask(features, padding_mask)
