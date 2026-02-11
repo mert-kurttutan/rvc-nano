@@ -30,6 +30,12 @@ export RVC_CONFIGS_DIR="$PWD/configs"
 export RVC_ASSETS_DIR="$PWD/assets"
 ```
 
+Run inference using the helper script:
+
+```sh
+uv run scripts/infer.py -i speech-sample-01.wav -o ./output/output.wav
+```
+
 Run inference using the Python API:
 
 ```python
