@@ -67,10 +67,10 @@ def _build_path_mapping() -> dict[tuple[str, str, bool], tuple[str, str]]:
         ),
     }
 
-def get_hubert_paths():
+def _get_hubert_paths():
     configs_dir = _get_configs_dir()
     assets_dir = _get_assets_dir()
-    return os.path.join(configs_dir, "hubert_cfg.json"), os.path.join(assets_dir, "/workspaces/rvc-nano/assets/hubert.safetensors"), 
+    return os.path.join(configs_dir, "hubert_cfg.json"), os.path.join(assets_dir, "hubert.safetensors"), 
 
 
 path_mapping = _build_path_mapping()
@@ -83,7 +83,7 @@ def _get_model_and_config_paths(version: str, num: str, if_f0: bool) -> tuple[st
     return path_mapping[key]
 
 
-def change_rms(data1, sr1, data2, sr2, rate):
+def _change_rms(data1, sr1, data2, sr2, rate):
     rms1 = librosa.feature.rms(y=data1, frame_length=sr1 // 2 * 2, hop_length=sr1 // 2)
     rms2 = librosa.feature.rms(y=data2, frame_length=sr2 // 2 * 2, hop_length=sr2 // 2)
     rms1 = torch.from_numpy(rms1)
@@ -94,40 +94,28 @@ def change_rms(data1, sr1, data2, sr2, rate):
     data2 *= (torch.pow(rms1, torch.tensor(1 - rate)) * torch.pow(rms2, torch.tensor(rate - 1))).numpy()
     return data2
 
-
-def _build_synthesizer_config(
-    version: str,
-    num: str,
-    if_f0: bool,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    _, rvc_cfg_path = _get_model_and_config_paths(version, num, if_f0)
-    with open(rvc_cfg_path) as f:
-        synthesizer_config = json.load(f)
-    synthesizer_config["model"]["embedding_dims"] = 256 if version == "v1" else 768
-    synthesizer_config["model"]["sr"] = synthesizer_config["data"]["sampling_rate"]
-    return synthesizer_config["model"], synthesizer_config["data"]
-
-
 def _load_synthesizer(
     config: Config,
     if_f0: bool,
     version: str,
     num: str = "48k",
 ):
-    rvc_path, _ = _get_model_and_config_paths(version, num, if_f0)
-    rvc_state = load_file(rvc_path)
-    synthesizer_config, data_config = _build_synthesizer_config(version, num, if_f0)
+    synthesizer_path, synthesizer_cfg_path = _get_model_and_config_paths(version, num, if_f0)
+    synthesizer_state = load_file(synthesizer_path)
 
+    with open(synthesizer_cfg_path) as f:
+        synthesizer_config = json.load(f)
+    synthesizer_config["model"]["embedding_dims"] = 256 if version == "v1" else 768
+    synthesizer_config["model"]["sr"] = synthesizer_config["data"]["sampling_rate"]
     synthesizer_class = {
         1: SynthesizerTrnMsNSF,
         0: SynthesizerTrnMsNSF_nono,
     }
-    synthesizer = synthesizer_class[if_f0](**synthesizer_config)
-    synthesizer.load_state_dict(rvc_state, strict=True)
+    synthesizer = synthesizer_class[if_f0](**synthesizer_config["model"])
+    synthesizer.load_state_dict(synthesizer_state, strict=True)
     synthesizer.eval().to(config.device)
     synthesizer = synthesizer.float()
-    return synthesizer, data_config
-
+    return synthesizer, synthesizer_config["data"]
 
 class Pipeline:
     def __init__(
@@ -138,7 +126,7 @@ class Pipeline:
         config: Config | None = None,
     ):
 
-        hubert_cfg_path, hubert_path = get_hubert_paths()
+        hubert_cfg_path, hubert_path = _get_hubert_paths()
         if not os.path.exists(hubert_path):
             raise FileNotFoundError("hubert_path not found.")
         self.config = config or Config()
@@ -372,7 +360,7 @@ class Pipeline:
             )
         audio_output = np.concatenate(audio_output)
         if rms_mix_rate != 1:
-            audio_output = change_rms(audio, 16000, audio_output, self.tgt_sr, rms_mix_rate)
+            audio_output = _change_rms(audio, 16000, audio_output, self.tgt_sr, rms_mix_rate)
         if self.tgt_sr != resample_sr and resample_sr >= 16000:
             audio_output = librosa.resample(audio_output, orig_sr=self.tgt_sr, target_sr=resample_sr)
         audio_max = np.abs(audio_output).max() / 0.99
