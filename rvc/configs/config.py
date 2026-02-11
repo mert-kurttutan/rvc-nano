@@ -14,7 +14,7 @@ version_config_list: list = [
 
 class Config:
     def __init__(self):
-        self.device: str = "cuda:0"
+        self.device: str = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.json_config = self.load_config_json()
         self.instead: str | None = None
         self.x_pad, self.x_query, self.x_center, self.x_max = self.device_config()

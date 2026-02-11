@@ -20,24 +20,67 @@ from rvc.vc.utils import load_hubert
 bh, ah = signal.butter(N=5, Wn=48, btype="high", fs=16000)
 
 
-path_mapping = {
-    ("v1", "32k", True): (
-        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/pretrained/f0G32k.safetensors",
-        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/v1/32k.json",
-    ),
-    ("v1", "40k", True): (
-        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/pretrained/f0G40k.safetensors",
-        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/v1/40k.json",
-    ),
-    ("v1", "48k", True): (
-        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/pretrained/f0G48k.safetensors",
-        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/v1/48k.json",
-    ),
-    ("v1", "48k", False): (
-        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/pretrained/G48k.safetensors",
-        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/v1/48k.json",
-    ),
-}
+def _get_configs_dir() -> str:
+    configs_dir = os.getenv("RVC_CONFIGS_DIR")
+    if not configs_dir:
+        raise EnvironmentError(
+            "RVC_CONFIGS_DIR is not set. "
+            "Set it to the directory containing v1/ and v2/ config folders."
+        )
+    if not os.path.isdir(configs_dir):
+        raise FileNotFoundError(f"RVC_CONFIGS_DIR does not exist: {configs_dir}")
+    return configs_dir
+
+
+def _get_assets_dir() -> str:
+    assets_dir = os.getenv("RVC_ASSETS_DIR")
+    if not assets_dir:
+        raise EnvironmentError(
+            "RVC_ASSETS_DIR is not set. "
+            "Set it to the directory containing pretrained model weights."
+        )
+    if not os.path.isdir(assets_dir):
+        raise FileNotFoundError(f"RVC_ASSETS_DIR does not exist: {assets_dir}")
+    return assets_dir
+
+
+def _build_path_mapping() -> dict[tuple[str, str, bool], tuple[str, str]]:
+    configs_dir = _get_configs_dir()
+    assets_dir = _get_assets_dir()
+    pretrained_dir = os.path.join(assets_dir, "pretrained")
+    return {
+        ("v1", "32k", True): (
+            os.path.join(pretrained_dir, "f0G32k.safetensors"),
+            os.path.join(configs_dir, "v1/32k.json"),
+        ),
+        ("v1", "40k", True): (
+            os.path.join(pretrained_dir, "f0G40k.safetensors"),
+            os.path.join(configs_dir, "v1/40k.json"),
+        ),
+        ("v1", "48k", True): (
+            os.path.join(pretrained_dir, "f0G48k.safetensors"),
+            os.path.join(configs_dir, "v1/48k.json"),
+        ),
+        ("v1", "48k", False): (
+            os.path.join(pretrained_dir, "G48k.safetensors"),
+            os.path.join(configs_dir, "v1/48k.json"),
+        ),
+    }
+
+def get_hubert_paths():
+    configs_dir = _get_configs_dir()
+    assets_dir = _get_assets_dir()
+    return os.path.join(configs_dir, "hubert_cfg.json"), os.path.join(assets_dir, "/workspaces/rvc-nano/assets/hubert.safetensors"), 
+
+
+path_mapping = _build_path_mapping()
+
+
+def _get_model_and_config_paths(version: str, num: str, if_f0: bool) -> tuple[str, str]:
+    key = (version, num, if_f0)
+    if key not in path_mapping:
+        raise KeyError(f"Unsupported path mapping key: {key}")
+    return path_mapping[key]
 
 
 def change_rms(data1, sr1, data2, sr2, rate):
@@ -57,7 +100,7 @@ def _build_rvc_model_config(
     num: str,
     if_f0: bool,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    rvc_cfg_path = path_mapping[(version, num, if_f0)][1]
+    _, rvc_cfg_path = _get_model_and_config_paths(version, num, if_f0)
     with open(rvc_cfg_path) as f:
         rvc_model_config = json.load(f)
     rvc_model_config["model"]["embedding_dims"] = 256 if version == "v1" else 768
@@ -71,7 +114,7 @@ def _load_rvc_model(
     version: str,
     num: str = "48k",
 ):
-    rvc_path = path_mapping[(version, num, if_f0)][0]
+    rvc_path, _ = _get_model_and_config_paths(version, num, if_f0)
     rvc_state = load_file(rvc_path)
     rvc_model_config, data_config = _build_rvc_model_config(version, num, if_f0)
 
@@ -89,16 +132,15 @@ def _load_rvc_model(
 class Pipeline:
     def __init__(
         self,
-        hubert_path: str,
-        hubert_cfg_path: str,
         if_f0: bool = True,
         version: str = "v1",
         num: str = "48k",
         config: Config | None = None,
     ):
+
+        hubert_cfg_path, hubert_path = get_hubert_paths()
         if not os.path.exists(hubert_path):
             raise FileNotFoundError("hubert_path not found.")
-
         self.config = config or Config()
         self.if_f0 = if_f0
         self.version = version
