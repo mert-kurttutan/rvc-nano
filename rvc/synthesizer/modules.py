@@ -168,18 +168,6 @@ class ResBlock2(nn.Module):
         return x
 
 
-class Flip(nn.Module):
-    def forward(
-        self,
-        x: torch.Tensor,
-        x_mask: torch.Tensor,
-        g: torch.Tensor | None = None,
-        reverse: bool = False,
-    ) -> torch.Tensor:
-        x = torch.flip(x, [1])
-        return x
-
-
 class ResidualCouplingLayer(nn.Module):
     def __init__(
         self,
@@ -203,8 +191,6 @@ class ResidualCouplingLayer(nn.Module):
             gin_channels=gin_channels,
         )
         self.post = nn.Conv1d(hidden_channels, self.half_channels, 1)
-        self.post.weight.data.zero_()
-        self.post.bias.data.zero_()
 
     def forward(
         self,

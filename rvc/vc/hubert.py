@@ -1481,14 +1481,11 @@ class HubertModel(nn.Module):
 
         final_dim = cfg["final_dim"] if cfg["final_dim"] > 0 else cfg["encoder_embed_dim"]
 
-        self.mask_emb = Parameter(torch.FloatTensor(cfg["encoder_embed_dim"]).uniform_())
-
         self.encoder = TransformerEncoder(cfg)
         self.layer_norm = nn.LayerNorm(self.embed)
 
         self.untie_final_proj = cfg["untie_final_proj"]
         self.final_proj = nn.Linear(cfg["encoder_embed_dim"], final_dim)
-        self.label_embs_concat = Parameter(torch.FloatTensor(504, final_dim))
 
     @classmethod
     def build_model(cls, cfg, task: HubertPretrainingTask):

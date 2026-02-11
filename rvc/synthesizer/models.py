@@ -79,7 +79,6 @@ class ResidualCouplingBlock(nn.Module):
                     gin_channels=gin_channels,
                 )
             )
-            self.flows.append(modules.Flip())
 
     def forward(
         self,
@@ -87,7 +86,8 @@ class ResidualCouplingBlock(nn.Module):
         x_mask: torch.Tensor,
         g: torch.Tensor | None = None,
     ):
-        for flow in self.flows[::-1]:
+        for flow in self.flows:
+            x = torch.flip(x, [1])
             x = flow.forward(x, x_mask, g=g)
         return x
 
@@ -264,7 +264,6 @@ class SourceModuleHnNSF(nn.Module):
         super().__init__()
 
         self.sine_amp = sine_amp
-        self.noise_std = add_noise_std
         # to produce sine waveforms
         self.l_sin_gen = SineGen(sampling_rate, harmonic_num, sine_amp, add_noise_std, voiced_threshod)
 
@@ -460,7 +459,6 @@ class SynthesizerTrnMsNSF_nono(nn.Module):
         gin_channels,
         sr=None,
     ):
-        print(f"nono gin_channels: {gin_channels}")
         super().__init__()
         self.enc_p = TextEncoder(
             embedding_dims,
