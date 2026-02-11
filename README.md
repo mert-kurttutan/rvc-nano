@@ -19,7 +19,16 @@ port to other platforms (e.g., Tenstorrent) and easier to embed in constrained e
 - Large pretrained models or indices (use external assets)
 
 ## Getting started
-This have similar functionaities to the original RVC. To get started, install the package and run inference:
+This have similar functionaities to the original RVC. Before getting started you need to set the following environment variables
+
+```sh
+# e.g.
+RVC_CONFIGS_DIR=/workspaces/rvc-nano/configs
+RVC_ASSETS_DIR=/workspaces/rvc-nano/assets
+RVC_TEST_INPUT=/workspaces/rvc-nano/speech-sample-01.wav
+```
+
+To get started, install the package and run inference:
 
 Example run:
 ```bash
