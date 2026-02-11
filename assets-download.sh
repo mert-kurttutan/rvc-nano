@@ -39,13 +39,17 @@ unset GIT_LFS_SKIP_SMUDGE
 unset GIT_CLONE_PROTECTION_ACTIVE
 
 download "assets"
+download "configs"
 
 rm -rf .git
 
 popd
 
 mkdir -p "assets"
+mkdir -p "configs"
 
 mv "${REPO_FOLDER}/assets" "./"
+mv "${REPO_FOLDER}/configs" "./" 
+
 
 rm -rf "${REPO_FOLDER}"
