@@ -1,3 +1,9 @@
+# /// script
+# dependencies = [
+#   "fairseq @ git+https://github.com/Tps-F/fairseq.git@main",
+#   "safetensors",
+# ]
+# ///
 import os
 
 import torch
@@ -38,14 +44,10 @@ def update_weight_normalization(state_dict: dict) -> dict:
 
 def convert_to_safetensors(
     model_path: str,
-    # json_keys: list[tuple[str, str]],
 ):
     state_dict = torch.load(model_path, map_location="cpu", weights_only=False)
     print("-" * 32)
     print(f"Loaded model from '{model_path}'.")
-    print(f"keys: {state_dict.keys()}")
-    # if key not in state_dict:
-    #     raise KeyError(f"Key '{key}' not found in the model state dict.")
     if "model" in state_dict.keys():
         model_state = state_dict["model"]
     elif "weight" in state_dict.keys():
@@ -53,21 +55,11 @@ def convert_to_safetensors(
     else:
         assert model_path.endswith("rmvpe.pt"), "Expected the key to be either 'model' or 'weight'."
         model_state = state_dict
-    # model_state = state_dict[key]
     model_state_updated = update_weight_normalization(model_state)
     model_state_updated = remove_unused_parameters(model_state_updated)
-    # create output path by replacing the extension with .safetensors
-    # use the right most dot to replace the extension
+    # get the file extension by using right most dot
     output_path = model_path.rsplit(".", 1)[0] + ".safetensors"
     save_file(model_state_updated, output_path)
-
-    # for json_key, json_path in json_keys:
-    #     if json_key in state_dict:
-    #         # save the json value to a .json file
-    #         with open(json_path, "w") as f:
-    #             json.dump(state_dict[json_key], f, indent=4)
-
-    # print(f"Converted '{key}' from {model_path} to {output_path}.")
 
 
 def convert_all_files(folder: str):

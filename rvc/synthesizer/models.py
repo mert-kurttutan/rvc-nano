@@ -399,8 +399,6 @@ class SynthesizerTrnMsNSF(nn.Module):
         sr,
     ):
         super().__init__()
-        print(f"gin_channels: {gin_channels}")
-        print(f"sr: {sr}")
         if isinstance(sr, str):
             sr = sr2sr[sr]
         self.enc_p = TextEncoder(

@@ -47,5 +47,5 @@ def load_hubert(config, hubert_path: str, hubert_cfg_path: str):
         suffix="",
     )
     hubert_model = hubert_model.to(config.device)
-    hubert_model = hubert_model.half() if config.is_half else hubert_model.float()
+    hubert_model = hubert_model.float()
     return hubert_model.eval()

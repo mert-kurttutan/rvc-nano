@@ -82,7 +82,7 @@ def _load_rvc_model(
     synthesizer = synthesizer_class[if_f0](**rvc_model_config)
     synthesizer.load_state_dict(rvc_state, strict=True)
     synthesizer.eval().to(config.device)
-    synthesizer = synthesizer.half() if config.is_half else synthesizer.float()
+    synthesizer = synthesizer.float()
     return synthesizer, data_config
 
 
@@ -110,12 +110,11 @@ class Pipeline:
         self._init_timing(self.tgt_sr, self.config)
 
     def _init_timing(self, tgt_sr: int, config: Config) -> None:
-        x_pad, x_query, x_center, x_max, self.is_half = (
+        x_pad, x_query, x_center, x_max = (
             config.x_pad,
             config.x_query,
             config.x_center,
             config.x_max,
-            config.is_half,
         )
         self.sr = 16000
         self.window = 160
@@ -171,7 +170,6 @@ class Pipeline:
 
                 self.model_rmvpe = RMVPE(
                     f"{os.environ['rmvpe_root']}/rmvpe.pt",
-                    is_half=self.is_half,
                     device=self.device,
                 )
             f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
@@ -203,7 +201,7 @@ class Pipeline:
         protect,
     ):
         feats = torch.from_numpy(audio)
-        feats = feats.half() if self.is_half else feats.float()
+        feats = feats.float()
         if feats.dim() == 2:
             feats = feats.mean(-1)
         assert feats.dim() == 1, feats.dim()
@@ -220,16 +218,12 @@ class Pipeline:
             feats0 = feats.clone()
         if index is not None and big_npy is not None and index_rate != 0:
             npy = feats[0].cpu().numpy()
-            if self.is_half:
-                npy = npy.astype("float32")
 
             score, ix = index.search(npy, k=8)
             weight = np.square(1 / score)
             weight /= weight.sum(axis=1, keepdims=True)
             npy = np.sum(big_npy[ix] * np.expand_dims(weight, axis=2), axis=1)
 
-            if self.is_half:
-                npy = npy.astype("float16")
             feats = torch.from_numpy(npy).unsqueeze(0).to(self.device) * index_rate + (1 - index_rate) * feats
 
         feats = F.interpolate(feats.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)

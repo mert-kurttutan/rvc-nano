@@ -29,7 +29,7 @@ def test_pipeline_inference_shapes(tmp_path: Path) -> None:
 
     input_path = _get_input_path(tmp_path)
 
-    hubert_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/hubert_model.safetensors"
+    hubert_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/hubert_base.safetensors"
     hubert_cfg_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/hubert_cfg.json"
 
     if not Path(hubert_path).exists():

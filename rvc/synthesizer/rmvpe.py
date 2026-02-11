@@ -241,7 +241,6 @@ class E2E(nn.Module):
 class MelSpectrogram(nn.Module):
     def __init__(
         self,
-        is_half,
         n_mel_channels,
         sampling_rate,
         win_length,
@@ -270,7 +269,6 @@ class MelSpectrogram(nn.Module):
         self.sampling_rate = sampling_rate
         self.n_mel_channels = n_mel_channels
         self.clamp = clamp
-        self.is_half = is_half
 
     def forward(self, audio, keyshift=0, speed=1, center=True):
         factor = 2 ** (keyshift / 12)
@@ -297,21 +295,18 @@ class MelSpectrogram(nn.Module):
                 magnitude = F.pad(magnitude, (0, 0, 0, size - resize))
             magnitude = magnitude[:, :size, :] * self.win_length / win_length_new
         mel_output = torch.matmul(self.mel_basis, magnitude)
-        if self.is_half:
-            mel_output = mel_output.half()
         log_mel_spec = torch.log(torch.clamp(mel_output, min=self.clamp))
         return log_mel_spec
 
 
 class RMVPE:
-    def __init__(self, model_path: str, is_half, device=None):
+    def __init__(self, model_path: str, device=None):
         self.resample_kernel = {}
         self.resample_kernel = {}
-        self.is_half = is_half
         if device is None:
             device = "cuda:0" if torch.cuda.is_available() else "cpu"
         self.device = device
-        self.mel_extractor = MelSpectrogram(is_half, 128, 16000, 1024, 160, None, 30, 8000).to(device)
+        self.mel_extractor = MelSpectrogram(128, 16000, 1024, 160, None, 30, 8000).to(device)
 
         if str(self.device) == "cuda":
             self.device = torch.device("cuda:0")
@@ -321,10 +316,7 @@ class RMVPE:
             ckpt = torch.load(model_path, map_location="cpu")
             model.load_state_dict(ckpt)
             model.eval()
-            if is_half:
-                model = model.half()
-            else:
-                model = model.float()
+            model = model.float()
             return model
 
         self.model = get_default_model()
@@ -340,7 +332,7 @@ class RMVPE:
             if n_pad > 0:
                 mel = F.pad(mel, (0, n_pad), mode="constant")
 
-            mel = mel.half() if self.is_half else mel.float()
+            mel = mel.float()
             hidden = self.model(mel)
             return hidden[:, :n_frames]
 
@@ -355,8 +347,6 @@ class RMVPE:
         mel = self.mel_extractor(torch.from_numpy(audio).float().to(self.device).unsqueeze(0), center=True)
         hidden = self.mel2hidden(mel)
         hidden = hidden.squeeze(0).cpu().numpy()
-        if self.is_half:
-            hidden = hidden.astype("float32")
 
         f0 = self.decode(hidden, thred=thred)
         return f0
