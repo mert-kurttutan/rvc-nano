@@ -2,48 +2,57 @@
 
 A minimal, dependency-light subset of the original RVC (Retrieval-based Voice Conversion) project.
 The goal is to keep core voice-conversion functionality while making the codebase easier to
-port to other platforms (e.g., Tenstorrent) and easier to embed in constrained environments.
+port to other platforms and easier to embed in constrained environments.
 
 ## Goals
 - Minimal dependencies and small runtime footprint
 - Keep core RVC inference functionality
 - Clean, portable architecture for non-Python or accelerator-backed ports
 
-## What is included
-- Core conversion pipeline (inference-focused)
-- Lightweight configuration and CLI surface
-- Clear module boundaries for future ports
-
-## What is not included
-- Heavy training pipelines and experimental tooling
-- Large pretrained models or indices (use external assets)
-
 ## Getting started
-This have similar functionaities to the original RVC. Before getting started you need to set the following environment variables
+Install the package (editable is fine for local work):
 
 ```sh
-# e.g.
-RVC_CONFIGS_DIR=/workspaces/rvc-nano/configs
-RVC_ASSETS_DIR=/workspaces/rvc-nano/assets
-RVC_TEST_INPUT=/workspaces/rvc-nano/speech-sample-01.wav
+uv pip install -e .
 ```
 
-To get started, install the package and run inference:
+This repository expects model assets and configs to live outside the package.
+Use the helper script to download them via Git LFS (requires `git lfs`):
 
-Example run:
-```bash
-uv run rvc infer -i speech-sample-01.wav -o output.wav
+```sh
+./assets-download.sh
 ```
 
-If you need the full-featured project, use the upstream repository:
+Then set the required environment variables:
+
+```sh
+export RVC_CONFIGS_DIR="$PWD/configs"
+export RVC_ASSETS_DIR="$PWD/assets"
+```
+
+Run inference using the Python API:
+
+```python
+from rvc.vc.pipeline import Pipeline
+import soundfile as sf
+
+pipe = Pipeline(if_f0=True, version="v1", num="48k")
+audio = pipe.infer("speech-sample-01.wav", speaker_id=0, f0_method="pm")
+sf.write("output.wav", audio, pipe.tgt_sr, subtype="PCM_16")
+```
+
+Expected layout after download:
+- `RVC_CONFIGS_DIR` contains `v1/` and `v2/` config folders plus `hubert_cfg.json`.
+- `RVC_ASSETS_DIR` contains `hubert.safetensors` and `pretrained/` weights.
+
+If you need the full-featured project (training, CLI, API), use the upstream repository:
 https://github.com/RVC-Project/Retrieval-based-Voice-Conversion
 
 ## Repository structure (high level)
 - `rvc/`: core Python package
-- `rvc/modules/`: VC pipeline and model-related modules
-- `rvc/lib/`: shared utilities
-- `rvc/configs/`: model configs and defaults
-- `rvc/wrapper/`: CLI and API wrappers
+- `rvc/vc/`: VC pipeline and inference code
+- `rvc/synthesizer/`: model definitions
+- `rvc/configs/`: config loader
 
 ## Status
 Early and intentionally minimal. Expect missing features and breaking changes while the

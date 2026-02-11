@@ -222,4 +222,4 @@ output/
 assets/
 
 # configs
-configs/
+/configs/
