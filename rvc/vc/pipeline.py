@@ -95,20 +95,20 @@ def change_rms(data1, sr1, data2, sr2, rate):
     return data2
 
 
-def _build_rvc_model_config(
+def _build_synthesizer_config(
     version: str,
     num: str,
     if_f0: bool,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     _, rvc_cfg_path = _get_model_and_config_paths(version, num, if_f0)
     with open(rvc_cfg_path) as f:
-        rvc_model_config = json.load(f)
-    rvc_model_config["model"]["embedding_dims"] = 256 if version == "v1" else 768
-    rvc_model_config["model"]["sr"] = rvc_model_config["data"]["sampling_rate"]
-    return rvc_model_config["model"], rvc_model_config["data"]
+        synthesizer_config = json.load(f)
+    synthesizer_config["model"]["embedding_dims"] = 256 if version == "v1" else 768
+    synthesizer_config["model"]["sr"] = synthesizer_config["data"]["sampling_rate"]
+    return synthesizer_config["model"], synthesizer_config["data"]
 
 
-def _load_rvc_model(
+def _load_synthesizer(
     config: Config,
     if_f0: bool,
     version: str,
@@ -116,13 +116,13 @@ def _load_rvc_model(
 ):
     rvc_path, _ = _get_model_and_config_paths(version, num, if_f0)
     rvc_state = load_file(rvc_path)
-    rvc_model_config, data_config = _build_rvc_model_config(version, num, if_f0)
+    synthesizer_config, data_config = _build_synthesizer_config(version, num, if_f0)
 
     synthesizer_class = {
         1: SynthesizerTrnMsNSF,
         0: SynthesizerTrnMsNSF_nono,
     }
-    synthesizer = synthesizer_class[if_f0](**rvc_model_config)
+    synthesizer = synthesizer_class[if_f0](**synthesizer_config)
     synthesizer.load_state_dict(rvc_state, strict=True)
     synthesizer.eval().to(config.device)
     synthesizer = synthesizer.float()
@@ -146,7 +146,7 @@ class Pipeline:
         self.version = version
         self.num = num
 
-        self.synthesizer, data_cfg = _load_rvc_model(self.config, self.if_f0, self.version, self.num)
+        self.synthesizer, data_cfg = _load_synthesizer(self.config, self.if_f0, self.version, self.num)
         self.tgt_sr = data_cfg["sampling_rate"]
         self.hubert_model = load_hubert(self.config, hubert_path, hubert_cfg_path)
         self._init_timing(self.tgt_sr, self.config)
