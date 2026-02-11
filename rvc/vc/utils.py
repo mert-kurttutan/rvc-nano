@@ -26,7 +26,6 @@ def setup_task():
 def load_model_ensemble_and_task(
     model_path,
     model_cfg_path,
-    strict=True,
     suffix="",
 ):
     cfg = None
@@ -35,10 +34,9 @@ def load_model_ensemble_and_task(
     with open(model_cfg_path) as f:
         cfg = json.load(f)
     model = HubertModel.build_model(cfg["model"], task)
-
     hubert_state_safetensors = load_file(model_path)
 
-    model.load_state_dict(hubert_state_safetensors, strict=strict)
+    model.load_state_dict(hubert_state_safetensors, strict=True)
     return model
 
 

@@ -1,4 +1,5 @@
 import json
+import math
 import os
 from typing import Any
 
@@ -13,10 +14,30 @@ from scipy import signal
 
 from rvc.audio import load_audio
 from rvc.configs.config import Config
-from rvc.synthesizer.models import SynthesizerTrnMsNSFsid, SynthesizerTrnMsNSFsid_nono
+from rvc.synthesizer.models import SynthesizerTrnMsNSF, SynthesizerTrnMsNSF_nono
 from rvc.vc.utils import load_hubert
 
 bh, ah = signal.butter(N=5, Wn=48, btype="high", fs=16000)
+
+
+path_mapping = {
+    ("v1", "32k", True): (
+        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/pretrained/f0G32k.safetensors",
+        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/v1/32k.json",
+    ),
+    ("v1", "40k", True): (
+        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/pretrained/f0G40k.safetensors",
+        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/v1/40k.json",
+    ),
+    ("v1", "48k", True): (
+        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/pretrained/f0G48k.safetensors",
+        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/v1/48k.json",
+    ),
+    ("v1", "48k", False): (
+        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/pretrained/G48k.safetensors",
+        "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/v1/48k.json",
+    ),
+}
 
 
 def change_rms(data1, sr1, data2, sr2, rate):
@@ -32,66 +53,59 @@ def change_rms(data1, sr1, data2, sr2, rate):
 
 
 def _build_rvc_model_config(
-    rvc_state: dict[str, Any],
-    rvc_cfg_path: str,
     version: str,
-) -> tuple[list[Any], int]:
+    num: str,
+    if_f0: bool,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    rvc_cfg_path = path_mapping[(version, num, if_f0)][1]
     with open(rvc_cfg_path) as f:
         rvc_model_config = json.load(f)
-    tgt_sr = rvc_model_config[-1]
-    rvc_model_config = list(rvc_model_config)
-    rvc_model_config[-3] = rvc_state["emb_g.weight"].shape[0]
-    if version == "v1":
-        rvc_model_config.insert(0, 256)
-    elif version == "v2":
-        rvc_model_config.insert(0, 768)
-    else:
-        raise ValueError("version must be 'v1' or 'v2'.")
-    return rvc_model_config, tgt_sr
+    rvc_model_config["model"]["embedding_dims"] = 256 if version == "v1" else 768
+    rvc_model_config["model"]["sr"] = rvc_model_config["data"]["sampling_rate"]
+    return rvc_model_config["model"], rvc_model_config["data"]
 
 
 def _load_rvc_model(
-    rvc_path: str,
-    rvc_cfg_path: str,
     config: Config,
-    if_f0: int,
+    if_f0: bool,
     version: str,
+    num: str = "48k",
 ):
+    rvc_path = path_mapping[(version, num, if_f0)][0]
     rvc_state = load_file(rvc_path)
-    rvc_model_config, tgt_sr = _build_rvc_model_config(rvc_state, rvc_cfg_path, version)
+    rvc_model_config, data_config = _build_rvc_model_config(version, num, if_f0)
 
     synthesizer_class = {
-        1: SynthesizerTrnMsNSFsid,
-        0: SynthesizerTrnMsNSFsid_nono,
+        1: SynthesizerTrnMsNSF,
+        0: SynthesizerTrnMsNSF_nono,
     }
-    synthesizer = synthesizer_class[if_f0](*rvc_model_config)
-    synthesizer.load_state_dict(rvc_state, strict=False)
+    synthesizer = synthesizer_class[if_f0](**rvc_model_config)
+    synthesizer.load_state_dict(rvc_state, strict=True)
     synthesizer.eval().to(config.device)
     synthesizer = synthesizer.half() if config.is_half else synthesizer.float()
-    return synthesizer, tgt_sr
+    return synthesizer, data_config
 
 
 class Pipeline:
     def __init__(
         self,
-        rvc_path: str,
-        rvc_cfg_path: str,
         hubert_path: str,
         hubert_cfg_path: str,
-        if_f0: int = 1,
+        if_f0: bool = True,
         version: str = "v1",
+        num: str = "48k",
         config: Config | None = None,
     ):
         if not os.path.exists(hubert_path):
             raise FileNotFoundError("hubert_path not found.")
-        if not os.path.exists(rvc_path):
-            raise FileNotFoundError("rvc_path not found.")
 
         self.config = config or Config()
         self.if_f0 = if_f0
         self.version = version
+        self.num = num
 
-        self.synthesizer, self.tgt_sr = _load_rvc_model(rvc_path, rvc_cfg_path, self.config, self.if_f0, self.version)
+        self.synthesizer, data_cfg = _load_rvc_model(self.config, self.if_f0, self.version, self.num)
+        self.tgt_sr = data_cfg["sampling_rate"]
         self.hubert_model = load_hubert(self.config, hubert_path, hubert_cfg_path)
         self._init_timing(self.tgt_sr, self.config)
 
@@ -116,8 +130,8 @@ class Pipeline:
     def _get_f0(self, x, p_len, f0_up_key, f0_method):
         f0_min = 50
         f0_max = 1100
-        f0_mel_min = 1127 * np.log(1 + f0_min / 700)
-        f0_mel_max = 1127 * np.log(1 + f0_max / 700)
+        f0_mel_min = 1127 * math.log(1 + f0_min / 700)
+        f0_mel_max = 1127 * math.log(1 + f0_max / 700)
         if f0_method == "pm":
             f0 = (
                 parselmouth.Sound(x, self.sr)
@@ -272,12 +286,12 @@ class Pipeline:
         # else:
         index = big_npy = None
         audio = signal.filtfilt(bh, ah, audio)
-        audio_pad = np.pad(audio, (self.window // 2, self.window // 2), mode="reflect")
+        audio_padded = np.pad(audio, (self.window // 2, self.window // 2), mode="reflect")
         opt_ts = []
-        if audio_pad.shape[0] > self.t_max:
+        if audio_padded.shape[0] > self.t_max:
             audio_sum = np.zeros_like(audio)
             for i in range(self.window):
-                audio_sum += np.abs(audio_pad[i : i - self.window])
+                audio_sum += np.abs(audio_padded[i : i - self.window])
             for t in range(self.t_center, audio.shape[0], self.t_center):
                 opt_ts.append(
                     t
@@ -288,8 +302,8 @@ class Pipeline:
                 )
 
         audio_output = []
-        audio_pad = np.pad(audio, (self.t_pad, self.t_pad), mode="reflect")
-        p_len = audio_pad.shape[0] // self.window
+        audio_padded = np.pad(audio, (self.t_pad, self.t_pad), mode="reflect")
+        p_len = audio_padded.shape[0] // self.window
         s = 0
         idx_list = []
         for t in opt_ts:
@@ -298,9 +312,9 @@ class Pipeline:
         idx_list.append((s // self.window, p_len))
         speaker_id = torch.tensor(speaker_id, device=self.device).unsqueeze(0).long()
         pitch, pitchf = None, None
-        if self.if_f0 == 1:
+        if self.if_f0:
             pitch, pitchf = self._get_f0(
-                audio_pad,
+                audio_padded,
                 p_len,
                 f0_up_key,
                 f0_method,
@@ -310,7 +324,7 @@ class Pipeline:
             pitchf_slice = pitchf[:, idx_s:idx_e] if pitchf is not None else None
             audio_output.append(
                 self._vc(
-                    audio_pad[idx_s * self.window : (idx_e + self.t_pad2 // self.window) * self.window],
+                    audio_padded[idx_s * self.window : (idx_e + self.t_pad2 // self.window) * self.window],
                     speaker_id,
                     pitch_slice,
                     pitchf_slice,

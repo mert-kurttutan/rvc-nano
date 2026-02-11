@@ -29,13 +29,9 @@ def test_pipeline_inference_shapes(tmp_path: Path) -> None:
 
     input_path = _get_input_path(tmp_path)
 
-    rvc_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/rvc_model.safetensors"
     hubert_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/assets/hubert_model.safetensors"
     hubert_cfg_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/hubert_cfg.json"
-    rvc_cfg_path = "/home/mert/Desktop/projects/RVC/Retrieval-based-Voice-Conversion/rvc/configs/rvc_model_config.json"
 
-    if not Path(rvc_path).exists():
-        pytest.skip("rvc_model.safetensors not found under assets/.")
     if not Path(hubert_path).exists():
         pytest.skip("hubert_model.safetensors not found under assets/.")
 
@@ -44,8 +40,6 @@ def test_pipeline_inference_shapes(tmp_path: Path) -> None:
         os.environ.setdefault("rmvpe_root", str(rmvpe_root))
 
     pipe = Pipeline(
-        rvc_path=rvc_path,
-        rvc_cfg_path=rvc_cfg_path,
         hubert_path=hubert_path,
         hubert_cfg_path=hubert_cfg_path,
     )

@@ -142,12 +142,9 @@ class Generator(nn.Module):
         for i in range(self.num_upsamples):
             x = F.leaky_relu(x, modules.LRELU_SLOPE)
             x = self.ups[i](x)
-            xs = None
-            for j in range(self.num_kernels):
-                if xs is None:
-                    xs = self.resblocks[i * self.num_kernels + j](x)
-                else:
-                    xs += self.resblocks[i * self.num_kernels + j](x)
+            xs = self.resblocks[i * self.num_kernels](x)
+            for j in range(1, self.num_kernels):
+                xs += self.resblocks[i * self.num_kernels + j](x)
             x = xs / self.num_kernels
         x = F.leaky_relu(x)
         x = self.conv_post(x)
@@ -381,12 +378,10 @@ sr2sr = {
 }
 
 
-class SynthesizerTrnMsNSFsid(nn.Module):
+class SynthesizerTrnMsNSF(nn.Module):
     def __init__(
         self,
         embedding_dims,
-        spec_channels,
-        segment_size,
         inter_channels,
         hidden_channels,
         filter_channels,
@@ -404,6 +399,8 @@ class SynthesizerTrnMsNSFsid(nn.Module):
         sr,
     ):
         super().__init__()
+        print(f"gin_channels: {gin_channels}")
+        print(f"sr: {sr}")
         if isinstance(sr, str):
             sr = sr2sr[sr]
         self.enc_p = TextEncoder(
@@ -435,9 +432,9 @@ class SynthesizerTrnMsNSFsid(nn.Module):
         phone_lengths: torch.Tensor,
         pitch: torch.Tensor,
         nsff0: torch.Tensor,
-        sid: torch.Tensor,
+        speaker_id: torch.Tensor,
     ):
-        g = self.emb_g(sid).unsqueeze(-1)
+        g = self.emb_g(speaker_id).unsqueeze(-1)
         m_p, logs_p, x_mask = self.enc_p(phone, pitch, phone_lengths)
         z_p = (m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666) * x_mask
         z = self.flow(z_p, x_mask, g=g)
@@ -445,12 +442,10 @@ class SynthesizerTrnMsNSFsid(nn.Module):
         return o
 
 
-class SynthesizerTrnMsNSFsid_nono(nn.Module):
+class SynthesizerTrnMsNSF_nono(nn.Module):
     def __init__(
         self,
         embedding_dims,
-        spec_channels,
-        segment_size,
         inter_channels,
         hidden_channels,
         filter_channels,
@@ -467,6 +462,7 @@ class SynthesizerTrnMsNSFsid_nono(nn.Module):
         gin_channels,
         sr=None,
     ):
+        print(f"nono gin_channels: {gin_channels}")
         super().__init__()
         self.enc_p = TextEncoder(
             embedding_dims,
@@ -495,9 +491,9 @@ class SynthesizerTrnMsNSFsid_nono(nn.Module):
         self,
         phone: torch.Tensor,
         phone_lengths: torch.Tensor,
-        sid: torch.Tensor,
+        speaker_id: torch.Tensor,
     ):
-        g = self.emb_g(sid).unsqueeze(-1)
+        g = self.emb_g(speaker_id).unsqueeze(-1)
         m_p, logs_p, x_mask = self.enc_p(phone, None, phone_lengths)
         z_p = (m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666) * x_mask
         z = self.flow(z_p, x_mask, g=g)

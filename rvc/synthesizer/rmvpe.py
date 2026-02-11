@@ -274,9 +274,9 @@ class MelSpectrogram(nn.Module):
 
     def forward(self, audio, keyshift=0, speed=1, center=True):
         factor = 2 ** (keyshift / 12)
-        n_fft_new = int(np.round(self.n_fft * factor))
-        win_length_new = int(np.round(self.win_length * factor))
-        hop_length_new = int(np.round(self.hop_length * speed))
+        n_fft_new = int(round(self.n_fft * factor))
+        win_length_new = int(round(self.win_length * factor))
+        hop_length_new = int(round(self.hop_length * speed))
         keyshift_key = str(keyshift) + "_" + str(audio.device)
         if keyshift_key not in self.hann_window:
             self.hann_window[keyshift_key] = torch.hann_window(win_length_new).to(audio.device)
