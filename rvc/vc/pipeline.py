@@ -1,7 +1,6 @@
 import json
 import math
 import os
-from typing import Any
 
 import librosa
 import numpy as np
@@ -23,10 +22,7 @@ bh, ah = signal.butter(N=5, Wn=48, btype="high", fs=16000)
 def _get_configs_dir() -> str:
     configs_dir = os.getenv("RVC_CONFIGS_DIR")
     if not configs_dir:
-        raise EnvironmentError(
-            "RVC_CONFIGS_DIR is not set. "
-            "Set it to the directory containing v1/ and v2/ config folders."
-        )
+        raise OSError("RVC_CONFIGS_DIR is not set. Set it to the directory containing v1/ and v2/ config folders.")
     if not os.path.isdir(configs_dir):
         raise FileNotFoundError(f"RVC_CONFIGS_DIR does not exist: {configs_dir}")
     return configs_dir
@@ -35,10 +31,7 @@ def _get_configs_dir() -> str:
 def _get_assets_dir() -> str:
     assets_dir = os.getenv("RVC_ASSETS_DIR")
     if not assets_dir:
-        raise EnvironmentError(
-            "RVC_ASSETS_DIR is not set. "
-            "Set it to the directory containing pretrained model weights."
-        )
+        raise OSError("RVC_ASSETS_DIR is not set. Set it to the directory containing pretrained model weights.")
     if not os.path.isdir(assets_dir):
         raise FileNotFoundError(f"RVC_ASSETS_DIR does not exist: {assets_dir}")
     return assets_dir
@@ -67,10 +60,14 @@ def _build_path_mapping() -> dict[tuple[str, str, bool], tuple[str, str]]:
         ),
     }
 
+
 def _get_hubert_paths():
     configs_dir = _get_configs_dir()
     assets_dir = _get_assets_dir()
-    return os.path.join(configs_dir, "hubert_cfg.json"), os.path.join(assets_dir, "hubert.safetensors"), 
+    return (
+        os.path.join(configs_dir, "hubert_cfg.json"),
+        os.path.join(assets_dir, "hubert.safetensors"),
+    )
 
 
 path_mapping = _build_path_mapping()
@@ -94,6 +91,7 @@ def _change_rms(data1, sr1, data2, sr2, rate):
     data2 *= (torch.pow(rms1, torch.tensor(1 - rate)) * torch.pow(rms2, torch.tensor(rate - 1))).numpy()
     return data2
 
+
 def _load_synthesizer(
     config: Config,
     if_f0: bool,
@@ -116,6 +114,7 @@ def _load_synthesizer(
     synthesizer.eval().to(config.device)
     synthesizer = synthesizer.float()
     return synthesizer, synthesizer_config["data"]
+
 
 class Pipeline:
     def __init__(

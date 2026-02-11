@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 import numpy as np
-import pytest
 import soundfile as sf
 from dotenv import load_dotenv
 
