@@ -22,9 +22,6 @@ dependencies = [
 [project.urls]
 github = "https://github.com/RVC-Project/Retrieval-based-Voice-Conversion"
 
-[project.optional-dependencies]
-dev = ["pytest", "ruff"]
-
 [build-system]
 requires = ["hatchling>=1.22.0,<2.0.0"]
 build-backend = "hatchling.build"
@@ -63,3 +60,10 @@ select = ["E", "F", "I", "UP", "B"]
 quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
+
+[dependency-groups]
+dev = [
+    "prek>=0.3.2",
+    "pytest>=9.0.2",
+    "ruff>=0.15.0",
+]

@@ -50,7 +50,7 @@ mkdir -p "assets"
 mkdir -p "configs"
 
 mv "${REPO_FOLDER}/assets" "./"
-mv "${REPO_FOLDER}/configs" "./" 
+mv "${REPO_FOLDER}/configs" "./"
 mv "${REPO_FOLDER}/sample-speech.wav" "./"
 
 
