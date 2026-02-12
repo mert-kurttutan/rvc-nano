@@ -33,7 +33,7 @@ export RVC_ASSETS_DIR="$PWD/assets"
 Run inference using the helper script:
 
 ```sh
-uv run scripts/infer.py -i speech-sample-01.wav -o ./output/output.wav
+uv run scripts/infer.py -i sample-speech.wav -o ./output/output.wav
 ```
 
 Run inference using the Python API:
@@ -43,13 +43,14 @@ from rvc.vc.pipeline import Pipeline
 import soundfile as sf
 
 pipe = Pipeline(if_f0=True, version="v1", num="48k")
-audio = pipe.infer("speech-sample-01.wav", speaker_id=0, f0_method="pm")
+audio = pipe.infer("sample-speech.wav", speaker_id=0, f0_method="pm")
 sf.write("output.wav", audio, pipe.tgt_sr, subtype="PCM_16")
 ```
 
 Expected layout after download:
 - `RVC_CONFIGS_DIR` contains `v1/` and `v2/` config folders plus `hubert_cfg.json`.
 - `RVC_ASSETS_DIR` contains `hubert.safetensors` and `pretrained/` weights.
+- Project root contains `sample-speech.wav`.
 
 If you need the full-featured project (training, CLI, API), use the upstream repository:
 https://github.com/RVC-Project/Retrieval-based-Voice-Conversion

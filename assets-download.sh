@@ -40,6 +40,7 @@ unset GIT_CLONE_PROTECTION_ACTIVE
 
 download "assets"
 download "configs"
+download "sample-speech.wav"
 
 rm -rf .git
 
@@ -50,6 +51,7 @@ mkdir -p "configs"
 
 mv "${REPO_FOLDER}/assets" "./"
 mv "${REPO_FOLDER}/configs" "./" 
+mv "${REPO_FOLDER}/sample-speech.wav" "./"
 
 
 rm -rf "${REPO_FOLDER}"
