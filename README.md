@@ -10,11 +10,6 @@ port to other platforms and easier to embed in constrained environments.
 - Clean, portable architecture for non-Python or accelerator-backed ports
 
 ## Getting started
-Install the package (editable is fine for local work):
-
-```sh
-uv pip install -e .
-```
 
 This repository expects model assets and configs to live outside the package.
 Use the helper script to download them via Git LFS (requires `git lfs`):
@@ -23,7 +18,13 @@ Use the helper script to download them via Git LFS (requires `git lfs`):
 ./assets-download.sh
 ```
 
-Then set the required environment variables:
+Install the package (editable is fine for local work):
+
+```sh
+uv pip install -e .
+```
+
+Then, set the required environment variables:
 
 ```sh
 export RVC_CONFIGS_DIR="$PWD/configs"
@@ -54,6 +55,18 @@ Expected layout after download:
 
 If you need the full-featured project (training, CLI, API), use the upstream repository:
 https://github.com/RVC-Project/Retrieval-based-Voice-Conversion
+
+## Development
+Before starting development, do the following:
+
+1. Install the project in editable mode with dev tools:
+```sh
+uv sync --group dev
+```
+2. Install prek to run hooks automatically before each commit:
+```sh
+prek install
+```
 
 ## Repository structure (high level)
 - `src/rvc/`: core Python package
