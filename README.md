@@ -56,10 +56,10 @@ If you need the full-featured project (training, CLI, API), use the upstream rep
 https://github.com/RVC-Project/Retrieval-based-Voice-Conversion
 
 ## Repository structure (high level)
-- `rvc/`: core Python package
-- `rvc/vc/`: VC pipeline and inference code
-- `rvc/synthesizer/`: model definitions
-- `rvc/configs/`: config loader
+- `src/rvc/`: core Python package
+- `src/rvc/vc/`: VC pipeline and inference code
+- `src/rvc/synthesizer/`: model definitions
+- `src/rvc/configs/`: config loader
 
 ## Status
 Early and intentionally minimal. Expect missing features and breaking changes while the

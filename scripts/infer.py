@@ -30,7 +30,7 @@ def main() -> int:
         return 2
     if not os.getenv("RVC_ASSETS_DIR"):
         print("Error: RVC_ASSETS_DIR is not set.", file=sys.stderr)
-        return 2
+        return 
 
     pipe = Pipeline(if_f0=True, version="v1", num="48k")
     audio = pipe.infer(
@@ -43,9 +43,11 @@ def main() -> int:
         rms_mix_rate=args.rms_mix_rate,
         protect=args.protect,
     )
+    output_dir = os.path.dirname(args.output)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     sf.write(args.output, audio, pipe.tgt_sr, subtype="PCM_16")
-    return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
