@@ -223,3 +223,6 @@ assets/
 
 # configs
 /configs/
+
+# sample audio file
+sample-speech.wav
