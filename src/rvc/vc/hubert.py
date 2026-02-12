@@ -29,13 +29,6 @@ LAYER_TYPE_CHOICES = Literal[
     "conformer",
 ]
 
-MASKING_DISTRIBUTION_CHOICES = Literal[
-    "static",
-    "uniform",
-    "normal",
-    "poisson",
-]
-
 
 @dataclass
 class HubertPretrainingConfig:
@@ -86,10 +79,6 @@ class HubertPretrainingConfig:
     single_target: bool | None = field(
         default=False,
         metadata={"help": "if set, AddTargetDatasets outputs same keys as AddTargetDataset"},
-    )
-    random_crop: bool | None = field(
-        default=True,
-        metadata={"help": "always crop from the beginning if false"},
     )
     pad_audio: bool | None = field(
         default=False,
@@ -263,15 +252,6 @@ class HubertConfig:
 
     # masking
     mask_length: int = field(default=10, metadata={"help": "mask length"})
-    mask_prob: float = field(
-        default=0.65,
-        metadata={"help": "probability of replacing a token with mask"},
-    )
-    mask_selection: MASKING_DISTRIBUTION_CHOICES = field(default="static", metadata={"help": "how to choose mask length"})
-    mask_other: float = field(
-        default=0,
-        metadata={"help": "secondary mask argument (used for more complex distributions), see help in compute_mask_indicesh"},
-    )
     no_mask_overlap: bool = field(default=False, metadata={"help": "whether to allow masks to overlap"})
     mask_min_space: int = field(
         default=1,
@@ -286,10 +266,6 @@ class HubertConfig:
     mask_channel_prob: float = field(
         default=0.0,
         metadata={"help": "probability of replacing a feature with 0"},
-    )
-    mask_channel_selection: MASKING_DISTRIBUTION_CHOICES = field(
-        default="static",
-        metadata={"help": "how to choose mask length for channel masking"},
     )
     mask_channel_other: float = field(
         default=0,
@@ -333,11 +309,6 @@ class HubertConfig:
         metadata={"help": "skip computing losses over unmasked frames"},
     )
 
-    checkpoint_activations: bool = field(
-        default=False,
-        metadata={"help": "recompute activations and save memory for extra compute"},
-    )
-
     # FP16 optimization
     required_seq_len_multiple: int = field(
         default=2,
@@ -357,166 +328,16 @@ class HubertConfig:
         default="abs",
         metadata={"help": "Positional encoding type to use in conformer"},
     )
-    fp16: bool = field(default=False, metadata={"help": "If fp16 is being used"})
-
-
-@dataclass
-class Wav2Vec2Config:
-    extractor_mode: EXTRACTOR_MODE_CHOICES = field(
-        default="default",
-        metadata={
-            "help": "mode for feature extractor. default has a single group norm with d "
-            "groups in the first conv block, whereas layer_norm has layer norms in "
-            "every block (meant to use with normalize=True)"
-        },
-    )
-    encoder_layers: int = field(default=12, metadata={"help": "num encoder layers in the transformer"})
-    encoder_embed_dim: int = field(default=768, metadata={"help": "encoder embedding dimension"})
-    encoder_ffn_embed_dim: int = field(default=3072, metadata={"help": "encoder embedding dimension for FFN"})
-    encoder_attention_heads: int = field(default=12, metadata={"help": "num encoder attention heads"})
-    activation_fn: AVAILABLE_ACT_FNS = field(default="gelu", metadata={"help": "activation function to use"})
-    layer_type: LAYER_TYPE_CHOICES = field(default="transformer", metadata={"help": "layer type in encoder"})
-
-    final_dim: int = field(
-        default=0,
-        metadata={"help": "project final representations and targets to this many dimensions.set to encoder_embed_dim is <= 0"},
-    )
-    layer_norm_first: bool = field(default=False, metadata={"help": "apply layernorm first in the transformer"})
-    conv_feature_layers: str = field(
-        default="[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] + [(512,2,2)]",
-        metadata={
-            "help": "string describing convolutional feature extraction layers in form of a python list that contains "
-            "[(dim, kernel_size, stride), ...]"
-        },
-    )
-    conv_bias: bool = field(default=False, metadata={"help": "include bias in conv encoder"})
-    logit_temp: float = field(default=0.1, metadata={"help": "temperature to divide logits by"})
-    target_glu: bool = field(default=False, metadata={"help": "adds projection + glu to targets"})
-    feature_grad_mult: float = field(default=1.0, metadata={"help": "multiply feature extractor var grads by this"})
-    latent_vars: int = field(
-        default=320,
-        metadata={"help": "number of latent variables V in each group of the codebook"},
-    )
-    latent_groups: int = field(
-        default=2,
-        metadata={"help": "number of groups G of latent variables in the codebook"},
-    )
-    latent_dim: int = field(
-        default=0,
-        metadata={"help": "if > 0, uses this dimensionality for latent variables. otherwise uses final_dim / latent_groups"},
-    )
-
-    # masking
-    mask_length: int = field(default=10, metadata={"help": "mask length"})
-    mask_prob: float = field(default=0.65, metadata={"help": "probability of replacing a token with mask"})
-    mask_selection: MASKING_DISTRIBUTION_CHOICES = field(default="static", metadata={"help": "how to choose mask length"})
-    mask_other: float = field(
-        default=0,
-        metadata={"help": "secondary mask argument (used for more complex distributions), see help in compute_mask_indices"},
-    )
-    no_mask_overlap: bool = field(default=False, metadata={"help": "whether to allow masks to overlap"})
-    mask_min_space: int = field(
-        default=1,
-        metadata={"help": "min space between spans (if no overlap is enabled)"},
-    )
-    require_same_masks: bool = field(
-        default=True,
-        metadata={"help": "whether to number of masked timesteps must be the same across all examples in a batch"},
-    )
-    mask_dropout: float = field(
-        default=0.0,
-        metadata={"help": "percent of masks to unmask for each sample"},
-    )
-
-    # channel masking
-    mask_channel_length: int = field(default=10, metadata={"help": "length of the mask for features (channels)"})
-    mask_channel_prob: float = field(default=0.0, metadata={"help": "probability of replacing a feature with 0"})
-    mask_channel_before: bool = False
-    mask_channel_selection: MASKING_DISTRIBUTION_CHOICES = field(
-        default="static",
-        metadata={"help": "how to choose mask length for channel masking"},
-    )
-    mask_channel_other: float = field(
-        default=0,
-        metadata={"help": "secondary mask argument (used for more complex distributions), see help in compute_mask_indicesh"},
-    )
-    no_mask_channel_overlap: bool = field(default=False, metadata={"help": "whether to allow channel masks to overlap"})
-    mask_channel_min_space: int = field(
-        default=1,
-        metadata={"help": "min space between spans (if no overlap is enabled)"},
-    )
-
-    # negative selection
-    num_negatives: int = field(
-        default=100,
-        metadata={"help": "number of negative examples from the same sample"},
-    )
-    negatives_from_everywhere: bool = field(
-        default=False,
-        metadata={"help": "sample negatives from everywhere, not just masked states"},
-    )
-    cross_sample_negatives: int = field(default=0, metadata={"help": "number of negative examples from the any sample"})
-    codebook_negatives: int = field(default=0, metadata={"help": "number of negative examples codebook"})
-
-    # positional embeddings
-    conv_pos: int = field(
-        default=128,
-        metadata={"help": "number of filters for convolutional positional embeddings"},
-    )
-    conv_pos_groups: int = field(
-        default=16,
-        metadata={"help": "number of groups for convolutional positional embedding"},
-    )
-    pos_conv_depth: int = field(
-        default=1,
-        metadata={"help": "depth of positional encoder network"},
-    )
-
-    latent_temp: tuple[float, float, float] = field(
-        default=(2, 0.5, 0.999995),
-        metadata={"help": "temperature for latent variable sampling. can be tuple of 3 values (start, end, decay)"},
-    )
-    max_positions: int = field(default=100000, metadata={"help": "Max positions"})
-    checkpoint_activations: bool = field(
-        default=False,
-        metadata={"help": "recompute activations and save memory for extra compute"},
-    )
-
-    # FP16 optimization
-    required_seq_len_multiple: int = field(
-        default=2,
-        metadata={"help": "pad the input to encoder such that the sequence length is divisible by multiple"},
-    )
-    crop_seq_to_multiple: int = field(
-        default=1,
-        metadata={"help": "crop convolutional feature extractor output such that the sequence length is divisible by multiple"},
-    )
-
-    # Conformer
-    depthwise_conv_kernel_size: int = field(
-        default=31,
-        metadata={"help": "depthwise-conv-kernel-size for convolution in conformer layer"},
-    )
-    attn_type: str = field(
-        default="",
-        metadata={"help": "if espnet use ESPNET MHA"},
-    )
-    pos_enc_type: str = field(
-        default="abs",
-        metadata={"help": "Positional encoding type to use in conformer"},
-    )
-    fp16: bool = field(default=False, metadata={"help": "If fp16 is being used"})
 
 
 class RotaryPositionalEmbedding(nn.Module):
-    def __init__(self, dim, base=10000, precision=torch.half):
+    def __init__(self, dim, base=10000):
         """Rotary positional embedding
         Reference : https://blog.eleuther.ai/rotary-embeddings/
         Paper: https://arxiv.org/pdf/2104.09864.pdf
         Args:
             dim: Dimension of embedding
             base: Base value for exponential
-            precision: precision to use for numerical values
         """
         super().__init__()
         inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
@@ -716,17 +537,13 @@ class RotaryPositionMultiHeadedAttention(ESPNETMultiHeadedAttention):
         self,
         n_feat,
         n_head,
-        precision,
     ):
         """Construct an RotaryPositionMultiHeadedAttention object."""
         super().__init__(n_feat, n_head)
         rotary_emd_base = 10000
-        precision = torch.float
         self.rotary_ndims = self.d_k  # also try self.d_k//2
-        if precision == "fp16":
-            precision = torch.half
 
-        self.rotary_emb = RotaryPositionalEmbedding(self.rotary_ndims, base=rotary_emd_base, precision=precision)
+        self.rotary_emb = RotaryPositionalEmbedding(self.rotary_ndims, base=rotary_emd_base)
 
     def forward(self, query, key, value, key_padding_mask=None, **kwargs):
         """Compute rotary position attention.
@@ -879,7 +696,6 @@ class ConvFeatureExtractionModel(nn.Module):
             if is_layer_norm:
                 return nn.Sequential(
                     make_conv(),
-                    nn.Dropout(p=0.0),
                     nn.Sequential(
                         TransposeLast(),
                         nn.LayerNorm(dim, elementwise_affine=True),
@@ -890,12 +706,11 @@ class ConvFeatureExtractionModel(nn.Module):
             elif is_group_norm:
                 return nn.Sequential(
                     make_conv(),
-                    nn.Dropout(p=0.0),
                     nn.GroupNorm(dim, dim, affine=True),
                     nn.GELU(),
                 )
             else:
-                return nn.Sequential(make_conv(), nn.Dropout(p=0.0), nn.GELU())
+                return nn.Sequential(make_conv(), nn.GELU())
 
         in_d = 1
         self.conv_layers = nn.ModuleList()
@@ -1047,7 +862,6 @@ class ConformerWav2Vec2EncoderLayer(nn.Module):
         embed_dim,
         ffn_embed_dim,
         attention_heads,
-        use_fp16,
         depthwise_conv_kernel_size=31,
         activation_fn="swish",
         attn_type=None,
@@ -1079,7 +893,7 @@ class ConformerWav2Vec2EncoderLayer(nn.Module):
                     attention_heads,
                 )
             elif self.pos_enc_type == "rope":
-                self.self_attn = RotaryPositionMultiHeadedAttention(embed_dim, attention_heads, precision=use_fp16)
+                self.self_attn = RotaryPositionMultiHeadedAttention(embed_dim, attention_heads)
             elif self.pos_enc_type == "abs":
                 self.self_attn = ESPNETMultiHeadedAttention(
                     embed_dim,
@@ -1361,7 +1175,6 @@ class TransformerEncoder(nn.Module):
                 depthwise_conv_kernel_size=args["depthwise_conv_kernel_size"],
                 activation_fn="swish",
                 attn_type=args["attn_type"],
-                use_fp16=args["fp16"],
                 pos_enc_type="abs",
             )
         return layer
