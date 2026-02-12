@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.urls]
-github = "https://github.com/RVC-Project/Retrieval-based-Voice-Conversion"
+github = "https://github.com/mert-kurttutan/rvc-nano"
 
 [build-system]
 requires = ["hatchling>=1.22.0,<2.0.0"]
