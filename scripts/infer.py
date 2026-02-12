@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import os
-import sys
 
 import soundfile as sf
 
@@ -22,15 +21,13 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> int:
+def main() -> None:
     args = parse_args()
 
     if not os.getenv("RVC_CONFIGS_DIR"):
-        print("Error: RVC_CONFIGS_DIR is not set.", file=sys.stderr)
-        return 2
+        raise OSError("RVC_CONFIGS_DIR is not set.")
     if not os.getenv("RVC_ASSETS_DIR"):
-        print("Error: RVC_ASSETS_DIR is not set.", file=sys.stderr)
-        return 
+        raise OSError("RVC_ASSETS_DIR is not set.")
 
     pipe = Pipeline(if_f0=True, version="v1", num="48k")
     audio = pipe.infer(
