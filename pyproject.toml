@@ -1,8 +1,8 @@
 [project]
-name = "rvc"
+name = "rvc-nano"
 version = "0.3.5"
-description = "An easy-to-use Voice Conversion framework based on VITS."
-authors = [{name = "Ftps", email = "ftpsflandre@gmail.com"}]
+description = "An small implementation of RVC (Retrieval Voice Conversion)"
+authors = [{name = "Mert Kurttutan", email = "kurttutan.mert@gmail.com"}]
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
 dependencies = [
