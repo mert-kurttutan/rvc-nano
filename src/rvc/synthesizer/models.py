@@ -7,7 +7,6 @@ from torch.nn import functional as F
 from torch.nn.utils.parametrizations import weight_norm
 
 from rvc.synthesizer import attentions, modules
-from rvc.synthesizer.commons import sequence_mask
 
 
 class TextEncoder(nn.Module):
@@ -38,7 +37,7 @@ class TextEncoder(nn.Module):
         )
         self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
 
-    def forward(self, phone: torch.Tensor, pitch: torch.Tensor | None, lengths: torch.Tensor):
+    def forward(self, phone: torch.Tensor, pitch: torch.Tensor | None):
         if pitch is None:
             x = self.emb_phone(phone)
         else:
@@ -46,12 +45,11 @@ class TextEncoder(nn.Module):
         x = x * math.sqrt(self.hidden_channels)  # [b, t, h]
         x = self.lrelu(x)
         x = torch.transpose(x, 1, -1)  # [b, h, t]
-        x_mask = torch.unsqueeze(sequence_mask(lengths, x.size(2)), 1).to(x.dtype)
-        x = self.encoder(x * x_mask, x_mask)
-        stats = self.proj(x) * x_mask
+        x = self.encoder(x)
+        stats = self.proj(x)
 
         m, logs = torch.split(stats, self.out_channels, dim=1)
-        return m, logs, x_mask
+        return m, logs
 
 
 class ResidualCouplingBlock(nn.Module):
@@ -83,12 +81,11 @@ class ResidualCouplingBlock(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        x_mask: torch.Tensor,
         g: torch.Tensor | None = None,
     ):
         for flow in self.flows:
             x = torch.flip(x, [1])
-            x = flow.forward(x, x_mask, g=g)
+            x = flow.forward(x, g=g)
         return x
 
 
@@ -426,16 +423,15 @@ class SynthesizerTrnMsNSF(nn.Module):
     def forward(
         self,
         phone: torch.Tensor,
-        phone_lengths: torch.Tensor,
         pitch: torch.Tensor,
         nsff0: torch.Tensor,
         speaker_id: torch.Tensor,
     ):
         g = self.emb_g(speaker_id).unsqueeze(-1)
-        m_p, logs_p, x_mask = self.enc_p(phone, pitch, phone_lengths)
-        z_p = (m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666) * x_mask
-        z = self.flow(z_p, x_mask, g=g)
-        o = self.dec(z * x_mask, nsff0, g=g)
+        m_p, logs_p = self.enc_p(phone, pitch)
+        z_p = (m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666)
+        z = self.flow(z_p, g=g)
+        o = self.dec(z, nsff0, g=g)
         return o
 
 
@@ -486,12 +482,11 @@ class SynthesizerTrnMsNSF_nono(nn.Module):
     def forward(
         self,
         phone: torch.Tensor,
-        phone_lengths: torch.Tensor,
         speaker_id: torch.Tensor,
     ):
         g = self.emb_g(speaker_id).unsqueeze(-1)
-        m_p, logs_p, x_mask = self.enc_p(phone, None, phone_lengths)
-        z_p = (m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666) * x_mask
-        z = self.flow(z_p, x_mask, g=g)
-        o = self.dec(z * x_mask, g=g)
+        m_p, logs_p = self.enc_p(phone, None)
+        z_p = (m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666)
+        z = self.flow(z_p, g=g)
+        o = self.dec(z, g=g)
         return o

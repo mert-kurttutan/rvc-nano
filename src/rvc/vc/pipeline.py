@@ -7,7 +7,8 @@ import numpy as np
 import parselmouth
 import torch
 import torch.nn.functional as F
-import torchcrepe
+
+# import torchcrepe
 from safetensors.torch import load_file
 from scipy import signal
 
@@ -124,7 +125,6 @@ class Pipeline:
         num: str = "48k",
         config: Config | None = None,
     ):
-
         hubert_cfg_path, hubert_path = _get_hubert_paths()
         if not os.path.exists(hubert_path):
             raise FileNotFoundError("hubert_path not found.")
@@ -235,11 +235,9 @@ class Pipeline:
             feats = feats.mean(-1)
         assert feats.dim() == 1, feats.dim()
         feats = feats.view(1, -1)
-        padding_mask = torch.BoolTensor(feats.shape).to(self.device).fill_(False)
         with torch.no_grad():
-            logits = self.hubert_model.extract_features(
+            logits = self.hubert_model(
                 source=feats.to(self.device),
-                padding_mask=padding_mask,
                 output_layer=9 if self.version == "v1" else 12,
             )
             feats = self.hubert_model.final_proj(logits) if self.version == "v1" else logits
@@ -258,14 +256,12 @@ class Pipeline:
         feats = F.interpolate(feats.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
         if protect < 0.5 and pitch is not None and pitchf is not None:
             feats0 = F.interpolate(feats0.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
-        p_len = audio.shape[0] // self.window
-        if feats.shape[1] < p_len:
-            p_len = feats.shape[1]
-            if pitch is not None and pitchf is not None:
-                pitch = pitch[:, :p_len]
-                pitchf = pitchf[:, :p_len]
-        p_len = torch.tensor([p_len], device=self.device).long()
+        assert audio.shape[0] // self.window >= feats.shape[1], f"p_len {p_len} must be greater than or equal to feats.shape[1] {feats.shape[1]}"
+        p_len = feats.shape[1]
 
+        if pitch is not None and pitchf is not None:
+            pitch = pitch[:, :p_len]
+            pitchf = pitchf[:, :p_len]
         if protect < 0.5 and pitch is not None and pitchf is not None:
             pitchff = pitchf.clone()
             pitchff[pitchf > 0] = 1
@@ -275,7 +271,7 @@ class Pipeline:
             feats = feats.to(feats0.dtype)
         with torch.no_grad():
             hasp = pitch is not None and pitchf is not None
-            arg = (feats, p_len, pitch, pitchf, speaker_id) if hasp else (feats, p_len, speaker_id)
+            arg = (feats, pitch, pitchf, speaker_id) if hasp else (feats, speaker_id)
             output = (self.synthesizer(*arg)[0, 0]).data.cpu().float().numpy()
         return output
 
@@ -320,7 +316,8 @@ class Pipeline:
                     t
                     - self.t_query
                     + np.where(
-                        audio_sum[t - self.t_query : t + self.t_query] == audio_sum[t - self.t_query : t + self.t_query].min()
+                        audio_sum[t - self.t_query : t + self.t_query]
+                        == audio_sum[t - self.t_query : t + self.t_query].min()
                     )[0][0]
                 )
 
