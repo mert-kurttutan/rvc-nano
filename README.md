@@ -65,7 +65,7 @@ uv sync --group dev
 ```
 2. Install prek to run hooks automatically before each commit:
 ```sh
-prek install
+uv run prek install
 ```
 
 ## Repository structure (high level)
