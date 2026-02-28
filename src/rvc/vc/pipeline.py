@@ -7,8 +7,7 @@ import numpy as np
 import parselmouth
 import torch
 import torch.nn.functional as F
-
-# import torchcrepe
+import torchcrepe
 from safetensors.torch import load_file
 from scipy import signal
 
@@ -256,7 +255,9 @@ class Pipeline:
         feats = F.interpolate(feats.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
         if protect < 0.5 and pitch is not None and pitchf is not None:
             feats0 = F.interpolate(feats0.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
-        assert audio.shape[0] // self.window >= feats.shape[1], f"p_len {p_len} must be greater than or equal to feats.shape[1] {feats.shape[1]}"
+        assert audio.shape[0] // self.window >= feats.shape[1], (
+            f"audio.shape[0] {audio.shape[0]} must be greater than or equal to feats.shape[1] {feats.shape[1]}"
+        )
         p_len = feats.shape[1]
 
         if pitch is not None and pitchf is not None:
@@ -316,8 +317,7 @@ class Pipeline:
                     t
                     - self.t_query
                     + np.where(
-                        audio_sum[t - self.t_query : t + self.t_query]
-                        == audio_sum[t - self.t_query : t + self.t_query].min()
+                        audio_sum[t - self.t_query : t + self.t_query] == audio_sum[t - self.t_query : t + self.t_query].min()
                     )[0][0]
                 )
 

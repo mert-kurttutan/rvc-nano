@@ -949,8 +949,7 @@ class MultiheadAttention(nn.Module):
         key: Tensor | None,
         value: Tensor | None,
     ) -> Tensor:
-        """Input shape: Time x Batch x Channel
-        """
+        """Input shape: Time x Batch x Channel"""
         tgt_len, bsz, embed_dim = query.size()
         src_len = tgt_len
         assert embed_dim == self.embed_dim, f"query dim {embed_dim} != {self.embed_dim}"

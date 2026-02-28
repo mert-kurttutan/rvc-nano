@@ -83,7 +83,7 @@ class WN(nn.Module):
             res_skip_acts = res_skip_layer(acts)
             if i < self.n_layers - 1:
                 res_acts = res_skip_acts[:, : self.hidden_channels, :]
-                x = (x + res_acts)
+                x = x + res_acts
                 output = output + res_skip_acts[:, self.hidden_channels :, :]
             else:
                 output = output + res_skip_acts
@@ -191,6 +191,6 @@ class ResidualCouplingLayer(nn.Module):
         h = self.pre(x0)
         h = self.enc(h, g=g)
         stats = self.post(h)
-        x1 = (x1 - stats)
+        x1 = x1 - stats
         x = torch.cat([x0, x1], 1)
         return x

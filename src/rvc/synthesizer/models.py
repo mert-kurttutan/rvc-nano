@@ -305,7 +305,7 @@ class GeneratorNSF(nn.Module):
                     k,
                     u,
                     padding=(k - u) // 2,
-                ) 
+                )
             )
             if i + 1 < len(upsample_rates):
                 stride_f0 = math.prod(upsample_rates[i + 1 :])
@@ -424,7 +424,7 @@ class SynthesizerTrnMsNSF(nn.Module):
     ):
         g = self.emb_g(speaker_id).unsqueeze(-1)
         m_p, logs_p = self.enc_p(phone, pitch)
-        z_p = (m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666)
+        z_p = m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666
         z = self.flow(z_p, g=g)
         o = self.dec(z, nsff0, g=g)
         return o
@@ -481,7 +481,7 @@ class SynthesizerTrnMsNSF_nono(nn.Module):
     ):
         g = self.emb_g(speaker_id).unsqueeze(-1)
         m_p, logs_p = self.enc_p(phone, None)
-        z_p = (m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666)
+        z_p = m_p + torch.exp(logs_p) * torch.randn_like(m_p) * 0.66666
         z = self.flow(z_p, g=g)
         o = self.dec(z, g=g)
         return o
