@@ -4,6 +4,7 @@ from torch.nn import Conv1d
 from torch.nn import functional as F
 
 from rvc.synthesizer.commons import fused_add_tanh_sigmoid_multiply, get_padding
+from rvc.utils import linear_channel_first
 
 LRELU_SLOPE = 0.1
 
@@ -68,7 +69,7 @@ class WN(nn.Module):
         output = torch.zeros_like(x)
         # n_channels_tensor = torch.IntTensor([self.hidden_channels])
         if g is not None:
-            g = self.cond_layer(g.transpose(1, 2)).transpose(1, 2)
+            g = linear_channel_first(g, self.cond_layer)
 
         for i, (in_layer, res_skip_linear) in enumerate(zip(self.in_layers, self.res_skip_layers, strict=True)):
             x_in = in_layer(x)
@@ -80,7 +81,7 @@ class WN(nn.Module):
 
             acts = fused_add_tanh_sigmoid_multiply(x_in, g_l, self.hidden_channels)
 
-            res_skip_acts = res_skip_linear(acts.transpose(1, 2)).transpose(1, 2)
+            res_skip_acts = linear_channel_first(acts, res_skip_linear)
             if i < self.n_layers - 1:
                 res_acts = res_skip_acts[:, : self.hidden_channels, :]
                 x = x + res_acts
@@ -188,9 +189,9 @@ class ResidualCouplingLayer(nn.Module):
         g: torch.Tensor | None = None,
     ):
         x0, x1 = torch.split(x, [self.half_channels] * 2, 1)
-        h = self.pre_linear(x0.transpose(1, 2)).transpose(1, 2)
+        h = linear_channel_first(x0, self.pre_linear)
         h = self.enc(h, g=g)
-        stats = self.post_linear(h.transpose(1, 2)).transpose(1, 2)
+        stats = linear_channel_first(h, self.post_linear)
         x1 = x1 - stats
         x = torch.cat([x0, x1], 1)
         return x

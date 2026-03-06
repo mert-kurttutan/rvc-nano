@@ -6,6 +6,7 @@ from torch.nn import Conv1d, ConvTranspose1d
 from torch.nn import functional as F
 
 from rvc.synthesizer import attentions, modules
+from rvc.utils import linear_channel_first
 
 
 class TextEncoder(nn.Module):
@@ -45,7 +46,7 @@ class TextEncoder(nn.Module):
         x = self.lrelu(x)
         x = torch.transpose(x, 1, -1)  # [b, h, t]
         x = self.encoder(x)
-        stats = self.proj_linear(x.transpose(1, 2)).transpose(1, 2)
+        stats = linear_channel_first(x, self.proj_linear)
 
         m, logs = torch.split(stats, self.out_channels, dim=1)
         return m, logs
@@ -131,7 +132,7 @@ class Generator(nn.Module):
     def forward(self, x: torch.Tensor, g: torch.Tensor | None = None):
         x = self.conv_pre(x)
         if g is not None:
-            x = x + self.cond_linear(g.transpose(1, 2)).transpose(1, 2)
+            x = x + linear_channel_first(g, self.cond_linear)
 
         for i in range(self.num_upsamples):
             x = F.leaky_relu(x, modules.LRELU_SLOPE)
@@ -300,12 +301,12 @@ class GeneratorNSF(nn.Module):
         har_source = har_source.transpose(1, 2)
         x = self.conv_pre(x)
         if g is not None:
-            x = x + self.cond_linear(g.transpose(1, 2)).transpose(1, 2)
+            x = x + linear_channel_first(g, self.cond_linear)
         for i, (ups, noise_convs) in enumerate(zip(self.ups, self.noise_convs, strict=True)):
             x = F.leaky_relu(x, self.lrelu_slope)
             x = ups(x)
             if isinstance(noise_convs, nn.Linear):
-                x_source = noise_convs(har_source.transpose(1, 2)).transpose(1, 2)
+                x_source = linear_channel_first(har_source, noise_convs)
             else:
                 x_source = noise_convs(har_source)
             x = x + x_source

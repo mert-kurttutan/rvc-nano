@@ -763,11 +763,8 @@ class ConvolutionModule(nn.Module):
           Tensor of shape B X T X C
         """
         x = self.layer_norm(x)
-        # exchange the temporal dimension and the feature dimension
-        x = x.transpose(1, 2)
-
-        # GLU mechanism
-        x = self.pointwise_linear1(x.transpose(1, 2)).transpose(1, 2)  # (batch, 2*channel, dim)
+        # Project in [B, T, C], then switch to channel-first for conv/GLU.
+        x = self.pointwise_linear1(x).transpose(1, 2)  # (batch, 2*channel, dim)
         x = self.glu(x)  # (batch, channel, dim)
 
         # 1D Depthwise Conv
@@ -775,8 +772,8 @@ class ConvolutionModule(nn.Module):
         x = self.batch_norm(x)
         x = self.activation(x)
 
-        x = self.pointwise_linear2(x.transpose(1, 2)).transpose(1, 2)
-        return x.transpose(1, 2)
+        x = self.pointwise_linear2(x.transpose(1, 2))
+        return x
 
 
 class ConformerWav2Vec2EncoderLayer(nn.Module):
