@@ -73,10 +73,10 @@ class MultiHeadAttention(nn.Module):
         self.window_size = window_size
 
         self.k_channels = channels // n_heads
-        self.conv_q = nn.Conv1d(channels, channels, 1)
-        self.conv_k = nn.Conv1d(channels, channels, 1)
-        self.conv_v = nn.Conv1d(channels, channels, 1)
-        self.conv_o = nn.Conv1d(channels, out_channels, 1)
+        self.linear_q = nn.Linear(channels, channels)
+        self.linear_k = nn.Linear(channels, channels)
+        self.linear_v = nn.Linear(channels, channels)
+        self.linear_o = nn.Linear(channels, out_channels)
 
         if window_size is not None:
             n_heads_rel = 1
@@ -85,13 +85,13 @@ class MultiHeadAttention(nn.Module):
             self.emb_rel_v = nn.Parameter(torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels) * rel_stddev)
 
     def forward(self, x: torch.Tensor, c: torch.Tensor):
-        q = self.conv_q(x)
-        k = self.conv_k(c)
-        v = self.conv_v(c)
+        q = self.linear_q(x.transpose(1, 2)).transpose(1, 2)
+        k = self.linear_k(c.transpose(1, 2)).transpose(1, 2)
+        v = self.linear_v(c.transpose(1, 2)).transpose(1, 2)
 
         x = self.attention(q, k, v)
 
-        x = self.conv_o(x)
+        x = self.linear_o(x.transpose(1, 2)).transpose(1, 2)
         return x
 
     def attention(

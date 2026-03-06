@@ -740,14 +740,7 @@ class ConvolutionModule(nn.Module):
         super().__init__()
         assert (depthwise_kernel_size - 1) % 2 == 0, "kernel_size should be a odd number for 'SAME' padding"
         self.layer_norm = nn.LayerNorm(embed_dim)
-        self.pointwise_conv1 = nn.Conv1d(
-            embed_dim,
-            2 * channels,
-            kernel_size=1,
-            stride=1,
-            padding=0,
-            bias=bias,
-        )
+        self.pointwise_linear1 = nn.Linear(embed_dim, 2 * channels, bias=bias)
         self.glu = nn.GLU(dim=1)
         self.depthwise_conv = nn.Conv1d(
             channels,
@@ -760,14 +753,7 @@ class ConvolutionModule(nn.Module):
         )
         self.batch_norm = nn.BatchNorm1d(channels)
         self.activation = get_activation_fn(activation_fn)(channels)
-        self.pointwise_conv2 = nn.Conv1d(
-            channels,
-            embed_dim,
-            kernel_size=1,
-            stride=1,
-            padding=0,
-            bias=bias,
-        )
+        self.pointwise_linear2 = nn.Linear(channels, embed_dim, bias=bias)
 
     def forward(self, x):
         """
@@ -781,7 +767,7 @@ class ConvolutionModule(nn.Module):
         x = x.transpose(1, 2)
 
         # GLU mechanism
-        x = self.pointwise_conv1(x)  # (batch, 2*channel, dim)
+        x = self.pointwise_linear1(x.transpose(1, 2)).transpose(1, 2)  # (batch, 2*channel, dim)
         x = self.glu(x)  # (batch, channel, dim)
 
         # 1D Depthwise Conv
@@ -789,7 +775,7 @@ class ConvolutionModule(nn.Module):
         x = self.batch_norm(x)
         x = self.activation(x)
 
-        x = self.pointwise_conv2(x)
+        x = self.pointwise_linear2(x.transpose(1, 2)).transpose(1, 2)
         return x.transpose(1, 2)
 
 
