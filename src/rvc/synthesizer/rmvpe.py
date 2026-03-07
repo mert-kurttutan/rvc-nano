@@ -13,8 +13,7 @@ class ConvBlockRes(nn.Module):
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=(3, 3),
-                stride=(1, 1),
-                padding=(1, 1),
+                padding="same",
                 bias=False,
             ),
             nn.BatchNorm2d(out_channels, momentum=momentum),
@@ -23,8 +22,7 @@ class ConvBlockRes(nn.Module):
                 in_channels=out_channels,
                 out_channels=out_channels,
                 kernel_size=(3, 3),
-                stride=(1, 1),
-                padding=(1, 1),
+                padding="same",
                 bias=False,
             ),
             nn.BatchNorm2d(out_channels, momentum=momentum),
@@ -220,7 +218,7 @@ class E2E(nn.Module):
             in_channels,
             en_out_channels,
         )
-        self.cnn = nn.Conv2d(en_out_channels, 3, (3, 3), padding=(1, 1))
+        self.cnn = nn.Conv2d(en_out_channels, 3, (3, 3), padding="same")
         if n_gru:
             self.fc = nn.Sequential(
                 BiGRU(3 * 128, 256, n_gru),

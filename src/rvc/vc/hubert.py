@@ -746,7 +746,6 @@ class ConvolutionModule(nn.Module):
             channels,
             channels,
             depthwise_kernel_size,
-            stride=1,
             padding=(depthwise_kernel_size - 1) // 2,
             groups=channels,
             bias=bias,

@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import Conv1d
 from torch.nn import functional as F
 
-from rvc.synthesizer.commons import fused_add_tanh_sigmoid_multiply, get_padding
+from rvc.synthesizer.commons import fused_add_tanh_sigmoid_multiply
 from rvc.utils import linear_channel_first
 
 LRELU_SLOPE = 0.1
@@ -46,13 +46,12 @@ class WN(nn.Module):
 
         for i in range(n_layers):
             dilation = dilation_rate**i
-            padding = int((kernel_size * dilation - dilation) / 2)
             in_layer = torch.nn.Conv1d(
                 hidden_channels,
                 2 * hidden_channels,
                 kernel_size,
                 dilation=dilation,
-                padding=padding,
+                padding="same",
             )
             self.in_layers.append(in_layer)
 
@@ -100,9 +99,8 @@ class ResBlock1(nn.Module):
                     channels,
                     channels,
                     kernel_size,
-                    1,
                     dilation=d_value,
-                    padding=get_padding(kernel_size, d_value),
+                    padding="same",
                 )
                 for d_value in dilation
             ]
@@ -114,9 +112,8 @@ class ResBlock1(nn.Module):
                     channels,
                     channels,
                     kernel_size,
-                    1,
                     dilation=1,
-                    padding=get_padding(kernel_size, 1),
+                    padding="same",
                 )
                 for _ in dilation
             ]
@@ -142,9 +139,8 @@ class ResBlock2(nn.Module):
                     channels,
                     channels,
                     kernel_size,
-                    1,
                     dilation=d_value,
-                    padding=get_padding(kernel_size, d_value),
+                    padding="same",
                 )
                 for d_value in dilation
             ]
