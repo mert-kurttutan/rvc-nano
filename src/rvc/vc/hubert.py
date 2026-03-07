@@ -397,8 +397,6 @@ class RelPositionMultiHeadedAttention(ESPNETMultiHeadedAttention):
         # as described in https://arxiv.org/abs/1901.02860 Section 3.3
         self.pos_bias_u = Parameter(torch.zeros(self.h, self.d_k))
         self.pos_bias_v = Parameter(torch.zeros(self.h, self.d_k))
-        nn.init.xavier_uniform_(self.pos_bias_u)
-        nn.init.xavier_uniform_(self.pos_bias_v)
 
     def rel_shift(self, x):
         """Compute relative positional encoding.
@@ -614,7 +612,6 @@ class ConvFeatureExtractionModel(nn.Module):
         ):
             def make_conv():
                 conv = nn.Conv1d(n_in, n_out, k, stride=stride, bias=conv_bias)
-                nn.init.kaiming_normal_(conv.weight)
                 return conv
 
             assert not (is_layer_norm and is_group_norm), "layer norm and group norm are exclusive"
