@@ -750,9 +750,7 @@ class ConvolutionModule(nn.Module):
         x = self.glu(x)  # (batch, channel, dim)
 
         # 1D Depthwise Conv
-        print("x shape before conv", x.shape)
         x = self.depthwise_conv(x)
-        print("x shape after conv", x.shape)
         x = self.batch_norm(x)
         x = self.activation(x)
 
@@ -1052,13 +1050,11 @@ class TransformerEncoder(nn.Module):
         self.required_seq_len_multiple = args.get("required_seq_len_multiple", 2)
 
         pos_conv_depth = getattr(args, "pos_conv_depth", 1)
-        print(f"Using pos conv depth {pos_conv_depth}")
         if pos_conv_depth > 1:
             num_layers = args["pos_conv_depth"]
             k = max(3, args["conv_pos"] // num_layers)
 
             def make_conv_block(e, k, g, n_layers):
-                print(f"making conv block with {n_layers} layers, kernel size {k}, groups {g}")
                 return nn.Sequential(
                     *[
                         nn.Sequential(
