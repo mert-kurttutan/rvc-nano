@@ -1,6 +1,6 @@
 # RVC Nano
 
-A minimal, dependency-light subset of the original RVC (Retrieval-based Voice Conversion) project.
+A minimal, dependency-light implementation of the original RVC (Retrieval-based Voice Conversion) project.
 The goal is to keep core voice-conversion functionality while making the codebase easier to
 port to other platforms and easier to embed in constrained environments.
 
