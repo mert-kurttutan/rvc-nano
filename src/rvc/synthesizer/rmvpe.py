@@ -239,7 +239,7 @@ class E2E(nn.Module):
 class MelSpectrogram(nn.Module):
     def __init__(
         self,
-        n_mel_channels,
+        mel_channels,
         sampling_rate,
         win_length,
         hop_length,
@@ -254,7 +254,7 @@ class MelSpectrogram(nn.Module):
         mel_basis = mel(
             sr=sampling_rate,
             n_fft=n_fft,
-            n_mels=n_mel_channels,
+            n_mels=mel_channels,
             fmin=mel_fmin,
             fmax=mel_fmax,
             htk=True,
@@ -265,7 +265,7 @@ class MelSpectrogram(nn.Module):
         self.hop_length = hop_length
         self.win_length = win_length
         self.sampling_rate = sampling_rate
-        self.n_mel_channels = n_mel_channels
+        self.mel_channels = mel_channels
         self.clamp = clamp
 
     def forward(self, audio, keyshift=0, speed=1, center=True):
